@@ -5,6 +5,7 @@ import dagre from "cytoscape-dagre";
 cytoscape.use(dagre);
 import { Plus, Minus, Maximize, Focus } from "lucide-react";
 import type { GraphData, Node } from "@/lib/types";
+import { useTheme } from "@/lib/theme";
 export const colors: Record<string, string> = {
   Component: "#b3a0f5",
   File: "#7f91ac",
@@ -34,11 +35,17 @@ export default function Graph({
   const cy = useRef<Core | null>(null);
   const selectRef = useRef(onSelect);
   const [hover, setHover] = useState<Node | null>(null);
+  const theme = useTheme();
   useEffect(() => {
     selectRef.current = onSelect;
   }, [onSelect]);
   useEffect(() => {
     if (!container.current) return;
+    const css = getComputedStyle(document.documentElement);
+    const graphText = css.getPropertyValue("--text-soft").trim();
+    const graphEdge = css.getPropertyValue("--border-strong").trim();
+    const graphAccent = css.getPropertyValue("--accent").trim();
+    const selectedBorder = css.getPropertyValue("--text").trim();
     const instance = cytoscape({
       container: container.current,
       elements: [],
@@ -54,7 +61,7 @@ export default function Graph({
             "border-width": 1,
             "background-opacity": 0.14,
             label: "data(label)",
-            color: "#d9dee9",
+            color: graphText,
             "font-family": "ui-monospace, SFMono-Regular, monospace",
             "font-size": 11,
             "text-wrap": "wrap",
@@ -84,8 +91,8 @@ export default function Graph({
           selector: "edge",
           style: {
             width: 1,
-            "line-color": "#3d4356",
-            "target-arrow-color": "#4d556c",
+            "line-color": graphEdge,
+            "target-arrow-color": graphEdge,
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
             "arrow-scale": 0.8,
@@ -102,14 +109,14 @@ export default function Graph({
           style: {
             "border-width": 3,
             "background-opacity": 0.5,
-            color: "#fff",
+            color: selectedBorder,
           },
         },
         {
           selector: "edge.highlight",
           style: {
-            "line-color": "#b5a0ff",
-            "target-arrow-color": "#b5a0ff",
+            "line-color": graphAccent,
+            "target-arrow-color": graphAccent,
             width: 2,
             opacity: 1,
           },
@@ -118,7 +125,7 @@ export default function Graph({
           selector: "node:selected",
           style: {
             "border-width": 3,
-            "border-color": "#fff",
+            "border-color": selectedBorder,
             "background-opacity": 0.4,
           },
         },
@@ -140,7 +147,7 @@ export default function Graph({
       instance.destroy();
       cy.current = null;
     };
-  }, []);
+  }, [theme]);
   useEffect(() => {
     const instance = cy.current;
     if (!instance) return;
@@ -184,7 +191,7 @@ export default function Graph({
     const observer = new ResizeObserver(() => instance.resize());
     if (container.current) observer.observe(container.current);
     return () => observer.disconnect();
-  }, [data, layout]);
+  }, [data, layout, theme]);
   useEffect(() => {
     const instance = cy.current;
     if (!instance) return;

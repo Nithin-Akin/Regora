@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import Brand from "./Brand";
 import SourceViewer from "./SourceViewer";
+import ThemeToggle from "./ThemeToggle";
 import { api, mergeGraph } from "@/lib/api";
 import type {
   Node,
@@ -438,9 +439,12 @@ export default function Workspace({
       <>
         <header className="topbar">
           <Brand />
-          <Link href="/repositories">
-            Repositories <ArrowRight size={16} />
-          </Link>
+          <div className="topbar-actions">
+            <ThemeToggle />
+            <Link href="/repositories">
+              Repositories <ArrowRight size={16} />
+            </Link>
+          </div>
         </header>
         <main className="progress-page">
           <div className="eyebrow">REPOSITORY INGESTION</div>
@@ -533,6 +537,7 @@ export default function Workspace({
           Indexed
         </span>
         <div className="header-end">
+          <ThemeToggle />
           <span className="fingerprint">{repo.fingerprint?.slice(0, 8)}</span>
           <button
             className="icon-button"

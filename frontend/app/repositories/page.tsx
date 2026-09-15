@@ -9,6 +9,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import Brand from "@/components/Brand";
+import ThemeToggle from "@/components/ThemeToggle";
 import { api } from "@/lib/api";
 import type { Repository } from "@/lib/types";
 export default function Repositories() {
@@ -34,10 +35,13 @@ export default function Repositories() {
     <>
       <header className="topbar">
         <Brand />
-        <Link className="button primary" href="/">
-          <Plus size={16} />
-          Add repository
-        </Link>
+        <div className="topbar-actions">
+          <ThemeToggle />
+          <Link className="button primary" href="/">
+            <Plus size={16} />
+            Add repository
+          </Link>
+        </div>
       </header>
       <main className="history">
         <div className="eyebrow">YOUR WORKSPACE</div>

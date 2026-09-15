@@ -15,6 +15,7 @@ import {
   FileArchive,
 } from "lucide-react";
 import Brand from "@/components/Brand";
+import ThemeToggle from "@/components/ThemeToggle";
 import { api, uploadRepository } from "@/lib/api";
 
 export default function Home() {
@@ -51,6 +52,7 @@ export default function Home() {
       <header className="topbar">
         <Brand />
         <nav>
+          <ThemeToggle />
           <Link href="/repositories">
             <FolderGit2 size={16} />
             Your repositories

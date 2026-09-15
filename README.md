@@ -52,9 +52,14 @@ Actual screenshots from the running demo, captured by the browser tests.
 
 ![Change impact](docs/screenshots/impact.png)
 
+![Regora light theme](docs/screenshots/theme-light.png)
+
+![Regora AMOLED theme](docs/screenshots/theme-amoled.png)
+
 ## The workspace
 
 - **Explorer:** indexed files, repository metrics, symbol/text/semantic/hybrid search.
+- **Themes:** persistent Light, Dark, and true-black AMOLED appearances across the full application.
 - **Architecture:** a compact map of real modules and external dependencies. Click a component to drill into its symbols. Components are grouped by source path, not invented by an LLM.
 - **Dependencies:** Cytoscape graph with pan, zoom, dragging, layout selection, fit/focus, type and relationship filters, and bounded neighborhood expansion/collapse.
 - **Inspector:** signatures, source ranges, docstrings, incoming/outgoing evidence, callers, callees, source viewing, and impact analysis.

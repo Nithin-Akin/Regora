@@ -1,10 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  oneLight,
+  vscDarkPlus,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
 import { X, FileCode2, LoaderCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Citation, Node } from "@/lib/types";
+import { useTheme } from "@/lib/theme";
 export default function SourceViewer({
   repository,
   citation,
@@ -17,6 +21,7 @@ export default function SourceViewer({
   const [source, setSource] = useState<Node | null>(null);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
+  const theme = useTheme();
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -70,7 +75,7 @@ export default function SourceViewer({
                   ? "typescript"
                   : "javascript"
             }
-            style={vscDarkPlus}
+            style={theme === "light" ? oneLight : vscDarkPlus}
             showLineNumbers
             wrapLines
             lineProps={(line) => ({
@@ -79,17 +84,17 @@ export default function SourceViewer({
                 display: "block",
                 backgroundColor:
                   line >= citation.start_line && line <= citation.end_line
-                    ? "#b7a1ff18"
+                    ? "color-mix(in srgb, var(--accent) 12%, transparent)"
                     : undefined,
                 borderLeft:
                   line >= citation.start_line && line <= citation.end_line
-                    ? "2px solid #b7a1ff"
+                    ? "2px solid var(--accent)"
                     : "2px solid transparent",
               },
             })}
             customStyle={{
               margin: 0,
-              background: "#11131b",
+              background: "var(--surface-low)",
               fontSize: 13,
               lineHeight: 1.8,
               minHeight: "100%",

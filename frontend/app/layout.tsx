@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+
+const themeScript = `(function(){try{var t=localStorage.getItem("regora-theme");document.documentElement.dataset.theme=t==="light"||t==="amoled"||t==="dark"?t:"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
+
 export const metadata: Metadata = {
   title: "Regora — Understand a codebase before you break it.",
   description:
@@ -12,7 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

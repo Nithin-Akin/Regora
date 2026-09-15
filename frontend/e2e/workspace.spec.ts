@@ -16,6 +16,27 @@ test("landing page imports and mobile layout", async ({ page }) => {
     path: "../docs/screenshots/landing.png",
     fullPage: true,
   });
+  const lightTheme = page.getByRole("button", { name: "Light" });
+  await lightTheme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(lightTheme).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: "../docs/screenshots/theme-light.png",
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const amoledTheme = page.getByRole("button", { name: "AMOLED" });
+  await amoledTheme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "amoled");
+  await expect(amoledTheme).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: "../docs/screenshots/theme-amoled.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Dark" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     page.getByRole("button", { name: "Analyze Repository" }),
@@ -52,6 +73,13 @@ test("real graph, search, source citations and impact", async ({
     path: "../docs/screenshots/workspace.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Light" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator(".cy-container canvas").first()).toBeVisible();
+  await page.getByRole("button", { name: "AMOLED" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "amoled");
+  await expect(page.locator(".cy-container canvas").first()).toBeVisible();
+  await page.getByRole("button", { name: "Dark" }).click();
   await page
     .getByRole("textbox", { name: "Search repository" })
     .fill("verify_token");
