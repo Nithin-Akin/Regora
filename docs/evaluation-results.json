@@ -1,0 +1,154 @@
+{
+  "repository": "99ce7984-6736-4ad8-ad2f-1814e29da2d0",
+  "metrics": {
+    "retrieval_hit_rate_at_5": 0.8,
+    "known_dependency_recall": 1.0,
+    "path_accuracy": 1.0,
+    "citation_correctness": 1.0,
+    "answer_evidence_coverage": 1.0,
+    "llm_answer_count": 1
+  },
+  "retrieval": [
+    {
+      "question": "JWT signature validation",
+      "expected": [
+        "utils/tokens.py:verify_token"
+      ],
+      "returned": [
+        "utils/tokens.py:verify_token",
+        "utils/tokens.py:create_token",
+        "utils/tokens.py",
+        "services/auth.py:AuthService",
+        "services/auth.py:AuthService.authenticate"
+      ],
+      "hit": true,
+      "warning": null
+    },
+    {
+      "question": "charge a credit card through the payment provider",
+      "expected": [
+        "services/payments.py:PaymentService.process_payment",
+        "services/provider.py:StripeClient.charge"
+      ],
+      "returned": [
+        "services/provider.py:StripeClient.charge",
+        "services/payments.py:PaymentService",
+        "services/payments.py:PaymentService.process_payment",
+        "services/provider.py:StripeClient",
+        "services/provider.py"
+      ],
+      "hit": true,
+      "warning": null
+    },
+    {
+      "question": "customer account password verification",
+      "expected": [
+        "services/users.py:UserService.check_password"
+      ],
+      "returned": [
+        "services/users.py:UserService.check_password",
+        "services/users.py:UserService",
+        "services/auth.py:AuthService.login",
+        "services/users.py:UserService.register",
+        "services/auth.py:AuthService"
+      ],
+      "hit": true,
+      "warning": null
+    },
+    {
+      "question": "persist checkout order to database",
+      "expected": [
+        "services/orders.py:OrderService.checkout"
+      ],
+      "returned": [
+        "models/entities.py:Order",
+        "web/events.js:trackCheckout",
+        "web/events.js",
+        "web/checkout.ts:submitCheckout",
+        "api/routes.py:checkout"
+      ],
+      "hit": false,
+      "warning": null
+    },
+    {
+      "question": "establish a database session",
+      "expected": [
+        "models/database.py:get_session"
+      ],
+      "returned": [
+        "models/database.py:get_session",
+        "models/database.py",
+        "services/users.py:UserService.register",
+        "services/users.py:UserService.get_user",
+        "services/users.py:UserService"
+      ],
+      "hit": true,
+      "warning": null
+    }
+  ],
+  "dependencies": [
+    {
+      "source": "api/routes.py:checkout",
+      "target": "services/orders.py:OrderService.checkout",
+      "correct": true
+    },
+    {
+      "source": "services/orders.py:OrderService.checkout",
+      "target": "services/payments.py:PaymentService.process_payment",
+      "correct": true
+    },
+    {
+      "source": "services/auth.py:AuthService.authenticate",
+      "target": "utils/tokens.py:verify_token",
+      "correct": true
+    },
+    {
+      "source": "web/checkout.ts:submitCheckout",
+      "target": "web/client.ts:ApiClient.checkout",
+      "correct": true
+    }
+  ],
+  "paths": [
+    {
+      "target": "process_payment",
+      "path": [
+        "22c4a60f2e36e00da276c701",
+        "336d9f509ca84a7f01103f06",
+        "a80683b918af23378f10030d",
+        "5a1bb2d7600cbe082ab3906b"
+      ],
+      "correct": true
+    },
+    {
+      "target": "Order",
+      "path": [
+        "22c4a60f2e36e00da276c701",
+        "336d9f509ca84a7f01103f06",
+        "a80683b918af23378f10030d",
+        "aef74a50a33889d13ccc315a"
+      ],
+      "correct": true
+    }
+  ],
+  "answers": [
+    {
+      "question": "What could break if I modify verify_token?",
+      "answer": "Changing verify_token has a computed potential impact of 52/100 (medium). Static traversal reaches 11 dependents across 3 files and 3 API endpoints, up to 4 hops away. This is a potential blast radius, not a prediction that each component will fail.",
+      "grounding": "static-evidence",
+      "citation_correctness": 1.0,
+      "evidence_coverage": true,
+      "paths_supported": true,
+      "tools": 3
+    },
+    {
+      "question": "Trace POST /checkout to the database.",
+      "answer": "Trace POST /checkout to the database involves the endpoint at api/routes.py, handling the request, and calling functions like checkout in the same file.",
+      "grounding": "llm-with-evidence",
+      "citation_correctness": 1.0,
+      "evidence_coverage": true,
+      "paths_supported": true,
+      "tools": 4
+    }
+  ],
+  "limitations": "Small curated ground truth. Evidence coverage checks citation identities and graph paths, not the semantic truth of every generated sentence. Dependency metric is recall on known edges, not precision over the entire graph."
+}

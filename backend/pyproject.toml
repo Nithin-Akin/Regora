@@ -1,0 +1,12 @@
+[project]
+name = "repograph-backend"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = ["fastapi", "uvicorn[standard]", "pydantic-settings", "python-multipart", "neo4j", "redis", "rq", "tree-sitter", "tree-sitter-python", "tree-sitter-javascript", "tree-sitter-typescript", "networkx", "httpx", "fastembed", "numpy"]
+[dependency-groups]
+dev = ["pytest", "pytest-cov", "ruff"]
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+[tool.ruff]
+line-length = 120

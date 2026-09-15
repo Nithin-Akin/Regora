@@ -1,0 +1,122 @@
+name: repograph
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    NEO4J_URI: bolt://neo4j:7687
+    REDIS_URL: redis://redis:6379/0
+    DATA_DIR: /data
+    DEMO_DIR: /demo/shop
+  volumes:
+    - repository_data:/data
+    - ./demo:/demo:ro
+  depends_on:
+    neo4j:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+services:
+  neo4j:
+    image: neo4j:2026.08-community
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-repograph-local}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 768m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  backend:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.workers.run"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from rq import Worker; from app.services.cache import redis_connection; assert Worker.all(connection=redis_connection())\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  architecture-worker:
+    <<: *backend
+    command: ["python", "-m", "app.workers.run"]
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      DEMO_DIR: /demo/shop
+      WORKER_QUEUES: architecture
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_CONTEXT_LENGTH: 8192
+      OLLAMA_NUM_PARALLEL: 1
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  ollama-init:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull $${LLM_MODEL:-qwen3:1.7b}"]
+    env_file: .env
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: on-failure
+volumes:
+  neo4j_data:
+  redis_data:
+  repository_data:
+  ollama_data:
