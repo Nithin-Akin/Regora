@@ -1,11 +1,15 @@
-# RepoGraph
+# Regora
+
+<p align="center">
+  <img src="frontend/public/regora-mark.svg" width="112" alt="Regora logo">
+</p>
 
 **Understand a codebase before you break it.**
 
-[![CI](https://github.com/Nithin-Akin/repograph/actions/workflows/ci.yml/badge.svg)](https://github.com/Nithin-Akin/repograph/actions/workflows/ci.yml)
+[![CI](https://github.com/Nithin-Akin/Regora/actions/workflows/ci.yml/badge.svg)](https://github.com/Nithin-Akin/Regora/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
-RepoGraph statically analyzes Python, JavaScript, and TypeScript repositories, stores an evidence-bearing dependency graph in Neo4j, and makes it explorable through a Next.js workspace. Semantic code search, graph traversal, a tool-using assistant, and algorithmic change-impact analysis share the same extracted facts.
+Regora statically analyzes Python, JavaScript, and TypeScript repositories, stores an evidence-bearing dependency graph in Neo4j, and makes it explorable through a Next.js workspace. Semantic code search, graph traversal, a tool-using assistant, and algorithmic change-impact analysis share the same extracted facts.
 
 No repository code is executed. LLMs explain retrieved evidence; they cannot write to the graph or execute arbitrary database queries.
 
@@ -14,8 +18,8 @@ No repository code is executed. LLMs explain retrieved evidence; they cannot wri
 Requirements: Docker Engine with Compose, internet access for the initial image/model downloads, and approximately 8 GB of memory available to Docker. The bundled language model runs on CPU; native Ollama or a cloud provider is faster. Allow disk space for Docker images, the 1.4 GB Qwen model, and the embedding model.
 
 ```bash
-git clone https://github.com/Nithin-Akin/repograph.git
-cd repograph
+git clone https://github.com/Nithin-Akin/Regora.git
+cd Regora
 cp .env.example .env
 docker compose up --build
 ```
@@ -44,7 +48,7 @@ docker compose down
 
 Actual screenshots from the running demo, captured by the browser tests.
 
-![RepoGraph workspace](docs/screenshots/workspace.png)
+![Regora workspace](docs/screenshots/workspace.png)
 
 ![Change impact](docs/screenshots/impact.png)
 
@@ -285,7 +289,7 @@ npm run test:e2e
 
 ## License
 
-RepoGraph is available under the [MIT License](LICENSE).
+Regora is available under the [MIT License](LICENSE).
 
 These check the landing import controls, responsive width, graph canvas, actual symbol search, source ranges, and impact panel. They save screenshots to `docs/screenshots`. The API smoke script uploads an actual ZIP and shallow-clones the public `pallets/itsdangerous` repository; no database manipulation or mock graph is used.
 
@@ -299,7 +303,7 @@ These check the landing import controls, responsive width, graph canvas, actual 
 - Which API endpoints depend on `UserService`?
 - Where is the database updated when an order is created?
 
-Northstar Commerce includes authentication, users, orders, payments, a Stripe boundary, ORM models, a TypeScript client, a deliberate pricing/discount import cycle, and a potentially unused legacy coupon function. It is source-analysis input, not a service that RepoGraph starts or executes.
+Northstar Commerce includes authentication, users, orders, payments, a Stripe boundary, ORM models, a TypeScript client, a deliberate pricing/discount import cycle, and a potentially unused legacy coupon function. It is source-analysis input, not a service that Regora starts or executes.
 
 ## Security and operational limits
 

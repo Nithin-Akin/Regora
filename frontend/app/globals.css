@@ -179,12 +179,15 @@ summary {
 .brand-mark {
   height: 32px;
   width: 32px;
-  border: 1px solid #514367;
   border-radius: 8px;
-  background: #2b243c;
   display: grid;
   place-items: center;
-  color: #c7b6f8;
+  overflow: hidden;
+}
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .brand-label {
   font-family: monospace;

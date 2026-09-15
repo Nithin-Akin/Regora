@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { Network } from "lucide-react";
 export default function Brand() {
   return (
     <Link href="/" className="brand">
       <span className="brand-mark">
-        <Network size={21} />
+        <img src="/regora-mark.svg" alt="" width={32} height={32} />
       </span>
-      RepoGraph<span className="brand-label">LOCAL</span>
+      Regora<span className="brand-label">LOCAL</span>
     </Link>
   );
 }

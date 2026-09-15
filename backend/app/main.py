@@ -23,7 +23,7 @@ async def lifespan(app):
     get_store().driver.close()
 
 
-app = FastAPI(title="RepoGraph API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Regora API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings().cors_origins,

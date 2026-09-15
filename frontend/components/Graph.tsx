@@ -218,7 +218,7 @@ export default function Graph({
         aria-label="Interactive repository dependency graph"
       />
       <div className="graph-watermark">
-        REPOGRAPH /{" "}
+        REGORA /{" "}
         {data.nodes.some((n) => n.type === "Component")
           ? "ARCHITECTURE"
           : "DEPENDENCIES"}

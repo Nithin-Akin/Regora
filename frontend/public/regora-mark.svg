@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Regora</title>
+  <desc id="desc">A connected letter R representing a repository knowledge graph.</desc>
+  <defs>
+    <linearGradient id="surface" x1="8" y1="5" x2="56" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#342957"/>
+      <stop offset="1" stop-color="#181522"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="17" y1="12" x2="48" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D5C9FF"/>
+      <stop offset="1" stop-color="#9B7EF2"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#surface)" stroke="#67558F" stroke-width="2"/>
+  <path d="M19 49V16h14.5C41 16 46 20.2 46 27c0 6.7-5 11-12.5 11H19m16-1 12 12" fill="none" stroke="url(#stroke)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="19" cy="16" r="4" fill="#D8CCFF"/>
+  <circle cx="46" cy="27" r="4" fill="#B69FF8"/>
+  <circle cx="19" cy="38" r="4" fill="#A889F3"/>
+  <circle cx="47" cy="49" r="4" fill="#8E6BE8"/>
+</svg>

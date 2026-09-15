@@ -1096,7 +1096,7 @@ export default function Workspace({
                         {m.role === "assistant" ? (
                           <>
                             <Sparkles size={13} />
-                            REPOGRAPH
+                            REGORA
                           </>
                         ) : (
                           "YOU"

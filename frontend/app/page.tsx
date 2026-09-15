@@ -75,7 +75,7 @@ export default function Home() {
             Understand a codebase before you break it.
           </p>
           <p className="muted explanation">
-            RepoGraph maps your code into an intelligent dependency graph and
+            Regora maps your code into an intelligent dependency graph and
             lets you ask questions about architecture, dependencies and change
             impact.
           </p>
@@ -229,7 +229,7 @@ export default function Home() {
         </div>
       </main>
       <footer>
-        <span>REPOGRAPH</span>
+        <span>REGORA</span>
         <span>Code is the source of truth.</span>
         <span>Python / JavaScript / TypeScript</span>
       </footer>

@@ -1,6 +1,6 @@
 # Northstar Commerce
 
-This source-analysis fixture represents a small commerce backend and TypeScript client. RepoGraph never runs it. Runtime dependencies are intentionally not installed. The pricing/discounts import cycle and unreferenced legacy coupon are deliberate analysis examples.
+This source-analysis fixture represents a small commerce backend and TypeScript client. Regora never runs it. Runtime dependencies are intentionally not installed. The pricing/discounts import cycle and unreferenced legacy coupon are deliberate analysis examples.
 
 Try:
 - Where is authentication handled?

@@ -767,7 +767,7 @@ wheels = [
 ]
 
 [[package]]
-name = "repograph-backend"
+name = "regora-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
