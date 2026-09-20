@@ -73,6 +73,13 @@ test("real graph, search, source citations and impact", async ({
     path: "../docs/screenshots/workspace.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "PR Impact" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "GitHub pull request URL" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Assistant", exact: true })
+    .click();
   await page.getByRole("button", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator(".cy-container canvas").first()).toBeVisible();

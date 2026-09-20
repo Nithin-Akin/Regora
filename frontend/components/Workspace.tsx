@@ -14,6 +14,7 @@ import {
   FileCode2,
   Folder,
   GitBranch,
+  GitPullRequest,
   Layers,
   LoaderCircle,
   MessageSquare,
@@ -41,6 +42,7 @@ import type {
   Repository,
   Overview,
   Impact,
+  PullRequestImpact,
   Citation,
   Answer,
   Message,
@@ -98,9 +100,9 @@ export default function Workspace({
   const [view, setView] = useState<"architecture" | "symbols" | "overview">(
     "architecture",
   );
-  const [right, setRight] = useState<"assistant" | "inspect" | "impact">(
-    "assistant",
-  );
+  const [right, setRight] = useState<
+    "assistant" | "inspect" | "impact" | "pr"
+  >("assistant");
   const [layout, setLayout] = useState("cose");
   const [depth, setDepth] = useState(1);
   const [nodeType, setNodeType] = useState("");
@@ -117,6 +119,9 @@ export default function Workspace({
   const [session, setSession] = useState("");
   const [citation, setCitation] = useState<Citation | null>(null);
   const [impact, setImpact] = useState<Impact | null>(null);
+  const [prUrl, setPrUrl] = useState("");
+  const [prImpact, setPrImpact] = useState<PullRequestImpact | null>(null);
+  const [prLoading, setPrLoading] = useState(false);
   const [working, setWorking] = useState("");
   const [pathStart, setPathStart] = useState<Node | null>(null);
   const [pathNotice, setPathNotice] = useState("");
@@ -288,6 +293,31 @@ export default function Workspace({
       fail(e);
     } finally {
       setWorking("");
+    }
+  }
+  async function analyzePullRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!prUrl.trim()) return;
+    setPrLoading(true);
+    setError("");
+    try {
+      const result = await api<PullRequestImpact>(
+        `${base}/pull-request-impact`,
+        { method: "POST", body: JSON.stringify({ url: prUrl.trim() }) },
+      );
+      setPrImpact(result);
+      setRight("pr");
+      setRightOpen(true);
+      if (result.graph.nodes.length) {
+        setGraph(result.graph);
+        setHighlights(result.impacts.map((item) => item.node.id));
+        setLayout("dagre");
+        setView("symbols");
+      }
+    } catch (e) {
+      fail(e);
+    } finally {
+      setPrLoading(false);
     }
   }
   useEffect(() => {
@@ -1043,6 +1073,13 @@ export default function Workspace({
               <Code2 size={14} />
               Inspector
             </button>
+            <button
+              className={right === "pr" ? "active" : ""}
+              onClick={() => setRight("pr")}
+            >
+              <GitPullRequest size={14} />
+              PR Impact
+            </button>
             {impact && (
               <button
                 className={right === "impact" ? "active" : ""}
@@ -1352,6 +1389,116 @@ export default function Workspace({
                 <p>Inspect its source, callers, and dependencies.</p>
               </div>
             )
+          ) : right === "pr" ? (
+            <div className="pr-impact-panel">
+              <div className="eyebrow">PULL REQUEST IMPACT</div>
+              <h2>Check a change before merge.</h2>
+              <p className="hint">
+                Paste a public GitHub pull request from this indexed repository.
+              </p>
+              <form onSubmit={analyzePullRequest} className="pr-impact-form">
+                <input
+                  aria-label="GitHub pull request URL"
+                  type="url"
+                  value={prUrl}
+                  onChange={(e) => setPrUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo/pull/123"
+                  required
+                />
+                <button
+                  className="button primary full"
+                  disabled={prLoading || !prUrl.trim()}
+                >
+                  {prLoading ? (
+                    <LoaderCircle className="spin" size={15} />
+                  ) : (
+                    <GitPullRequest size={15} />
+                  )}
+                  {prLoading ? "Reading pull request" : "Analyze pull request"}
+                </button>
+              </form>
+              {prImpact && (
+                <>
+                  <a
+                    className="pr-title"
+                    href={prImpact.pull_request.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span>PR #{prImpact.pull_request.number}</span>
+                    <strong>{prImpact.pull_request.title}</strong>
+                    <small>
+                      {prImpact.pull_request.base} → {prImpact.pull_request.head}
+                    </small>
+                  </a>
+                  <div
+                    className={
+                      "risk-score compact " +
+                      prImpact.summary.risk.toLowerCase()
+                    }
+                  >
+                    <strong>
+                      {prImpact.summary.score}
+                      <small>/ 100</small>
+                    </strong>
+                    <span>{prImpact.summary.risk} HIGHEST RISK</span>
+                  </div>
+                  <div className="impact-stats">
+                    {[
+                      ["Changed files", prImpact.summary.files_changed],
+                      ["Changed symbols", prImpact.summary.symbols_changed],
+                      ["Affected files", prImpact.summary.affected_files],
+                      ["API routes", prImpact.summary.affected_endpoints],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <strong>{value}</strong>
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <h3>Highest impact symbols</h3>
+                  {prImpact.impacts.length ? (
+                    prImpact.impacts.slice(0, 8).map((item) => (
+                      <button
+                        className="pr-symbol"
+                        key={item.node.id}
+                        onClick={() => openSource(item.node)}
+                      >
+                        <span>
+                          <strong>{item.node.name}</strong>
+                          <small>{item.node.file_path}</small>
+                        </span>
+                        <b className={item.risk.toLowerCase()}>
+                          {item.score}
+                        </b>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="hint">
+                      No changed symbols from this pull request exist in the
+                      current index. Reindex the pull request branch to inspect
+                      newly added code.
+                    </p>
+                  )}
+                  <h3>Changed files</h3>
+                  {prImpact.files.slice(0, 20).map((file) => (
+                    <div className="pr-file" key={file.path}>
+                      <span>{file.path}</span>
+                      <small>
+                        <b>+{file.additions}</b> −{file.deletions}
+                      </small>
+                    </div>
+                  ))}
+                  {prImpact.truncated && (
+                    <p className="warning hint">
+                      This report was limited to the first 100 changed files or
+                      50 mapped symbols.
+                    </p>
+                  )}
+                  <p className="hint">{prImpact.caveat}</p>
+                </>
+              )}
+            </div>
           ) : (
             impact && (
               <div className="impact-panel">

@@ -52,6 +52,8 @@ Actual screenshots from the running demo, captured by the browser tests.
 
 ![Change impact](docs/screenshots/impact.png)
 
+![Pull request impact](docs/screenshots/pr-impact.png)
+
 ![Regora light theme](docs/screenshots/theme-light.png)
 
 ![Regora AMOLED theme](docs/screenshots/theme-amoled.png)
@@ -67,6 +69,7 @@ Actual screenshots from the running demo, captured by the browser tests.
 - **Overview:** actual counts, language distribution, connection hubs, cycles, potentially unused symbols, and an automatically generated architecture explanation.
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
+- **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols and inspect their static blast radius.
 
 Source citations open an integrated read-only, syntax-highlighted viewer at the indexed line range. Source is loaded lazily from the database, not from a client-supplied filesystem path.
 
@@ -214,6 +217,7 @@ Copy `.env.example` and edit values before starting Compose. Compose fixes its i
 | `LLM_MODEL` | `qwen3:1.7b` |
 | `LLM_BASE_URL` | `http://ollama:11434/v1` |
 | `LLM_API_KEY` | Empty for local Ollama |
+| `GITHUB_TOKEN` | Optional token for a higher public pull request API rate limit |
 | `EMBEDDING_PROVIDER` | `local` or `cloud` |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` |
 | `EMBEDDING_DIMENSIONS` | `384`; must match the selected model/index |

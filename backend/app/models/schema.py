@@ -51,6 +51,10 @@ class GitHubRequest(BaseModel):
     url: str = Field(max_length=250)
 
 
+class PullRequestRequest(BaseModel):
+    url: str = Field(max_length=300)
+
+
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     session_id: str | None = Field(default=None, max_length=100)

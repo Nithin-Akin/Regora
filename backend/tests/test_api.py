@@ -1,4 +1,5 @@
 import pytest
+import app.api.routes as routes
 from fastapi.testclient import TestClient
 from app.main import app
 from app.graph.store import get_store
@@ -10,7 +11,18 @@ class FakeStore:
         return [{"id": "r", "name": "Test", "status": "READY", "source_root": "private", "logs": "[]"}]
 
     def repository(self, id):
-        return {"id": "r", "name": "Test", "status": "READY", "warnings": "[]"} if id == "r" else None
+        return (
+            {
+                "id": "r",
+                "name": "Test",
+                "status": "READY",
+                "warnings": "[]",
+                "kind": "github",
+                "source": "https://github.com/acme/shop",
+            }
+            if id == "r"
+            else None
+        )
 
 
 @pytest.fixture
@@ -54,3 +66,38 @@ def test_unknown_symbol_returns_404(client):
 def test_invalid_zip_rejected(client):
     response = client.post("/api/repositories/upload", files={"file": ("bad.zip", b"not a zip", "application/zip")})
     assert response.status_code == 422
+
+
+def test_pull_request_impact_endpoint(client, monkeypatch):
+    monkeypatch.setattr(
+        routes,
+        "fetch_pull_request",
+        lambda url: {
+            "owner": "acme",
+            "repository": "shop",
+            "pull_request": {
+                "number": 12,
+                "title": "Change authentication",
+                "html_url": url,
+                "state": "open",
+                "base": {"ref": "main"},
+                "head": {"ref": "auth-change"},
+            },
+            "files": [
+                {
+                    "filename": "services/auth.py",
+                    "status": "modified",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": "@@ -4,6 +4,6 @@",
+                }
+            ],
+            "truncated": False,
+        },
+    )
+    response = client.post(
+        "/api/repositories/r/pull-request-impact",
+        json={"url": "https://github.com/acme/shop/pull/12"},
+    )
+    assert response.status_code == 200
+    assert response.json()["summary"]["symbols_changed"] >= 1

@@ -79,6 +79,44 @@ export type Impact = {
   graph: GraphData;
   caveat: string;
 };
+export type PullRequestImpact = {
+  pull_request: {
+    number: number;
+    title: string;
+    url: string;
+    state: string;
+    base: string;
+    head: string;
+  };
+  summary: {
+    files_changed: number;
+    symbols_changed: number;
+    affected_files: number;
+    affected_endpoints: number;
+    score: number;
+    risk: string;
+  };
+  files: {
+    path: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    symbols: Node[];
+  }[];
+  impacts: {
+    node: Node;
+    score: number;
+    risk: string;
+    blast_radius: number;
+    affected_files: string[];
+    affected_endpoints: string[];
+    dependency_depth: number;
+  }[];
+  unmatched_files: string[];
+  graph: GraphData;
+  truncated: boolean;
+  caveat: string;
+};
 export type Citation = {
   symbol_id: string;
   file: string;

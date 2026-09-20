@@ -9,9 +9,14 @@ from app.graph.store import get_store, GraphStore
 from app.services.cache import redis_connection, intelligence, snapshot
 from app.workers.ingestion import ingest, job_failure, now
 from app.security.repositories import validate_github
-from app.models.schema import GitHubRequest, AskRequest, TraceRequest
+from app.models.schema import GitHubRequest, PullRequestRequest, AskRequest, TraceRequest
 from app.retrieval.hybrid import HybridRetrieval
 from app.agents.reasoning import RepoAgent
+from app.services.pull_requests import (
+    analyze_pull_request,
+    fetch_pull_request,
+    validate_pull_request_repository,
+)
 
 router = APIRouter(prefix="/api")
 ACTIVE = {"QUEUED", "CLONING", "SCANNING", "PARSING", "BUILDING_GRAPH", "EMBEDDING", "ANALYZING"}
@@ -296,6 +301,21 @@ def impact(id: str, symbol_id: str, i=Depends(ready)):
     if symbol_id not in i.nodes:
         raise HTTPException(404, "Symbol not found")
     return i.impact(symbol_id)
+
+
+@router.post("/repositories/{id}/pull-request-impact")
+def pull_request_impact(
+    id: str,
+    body: PullRequestRequest,
+    i=Depends(ready),
+    store: GraphStore = Depends(get_store),
+):
+    repo = repo_or_404(id, store)
+    try:
+        validate_pull_request_repository(repo, body.url)
+        return analyze_pull_request(i, repo, fetch_pull_request(body.url))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/repositories/{id}/paths")

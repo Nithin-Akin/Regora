@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:1.7b"
     llm_api_key: str = ""
     llm_base_url: str = "http://localhost:11434/v1"
+    github_token: str = ""
     max_archive_mb: int = 50
     max_extracted_mb: int = 250
     max_files: int = 10000
