@@ -54,8 +54,6 @@ Actual screenshots from the running demo, captured by the browser tests.
 
 ![Pull request impact](docs/screenshots/pr-impact.png)
 
-![Regora light theme](docs/screenshots/theme-light.png)
-
 ![Regora AMOLED theme](docs/screenshots/theme-amoled.png)
 
 ## The workspace
