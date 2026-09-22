@@ -68,6 +68,7 @@ Actual screenshots from the running demo, captured by the browser tests.
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols and inspect their static blast radius.
+- **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 
 Source citations open an integrated read-only, syntax-highlighted viewer at the indexed line range. Source is loaded lazily from the database, not from a client-supplied filesystem path.
 
@@ -329,4 +330,4 @@ Python/JS/TS support covers common declarations, imports, aliases, lexical calls
 
 Database interaction patterns are probable static evidence, not proof of an executed transaction. Plain source secrets are not automatically redacted before analysis; keep sensitive repositories local or use an approved provider. Large repositories are bounded rather than claimed to support unlimited graph materialization. Endpoints absent from recognized static patterns are not fabricated.
 
-Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, signed-in multi-user deployments, GitHub App authorization, streaming model responses, and a larger manually reviewed grounding evaluation set.
+Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, signed-in multi-user deployments, GitHub App authorization, and a larger manually reviewed grounding evaluation set.

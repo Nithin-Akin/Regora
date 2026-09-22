@@ -1,9 +1,13 @@
+import json
+
 import pytest
-import app.api.routes as routes
 from fastapi.testclient import TestClient
-from app.main import app
-from app.graph.store import get_store
+
+import app.api.routes as routes
 from app.api.routes import ready
+from app.graph.store import get_store
+from app.main import app
+from app.models.schema import Answer
 
 
 class FakeStore:
@@ -101,3 +105,35 @@ def test_pull_request_impact_endpoint(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["summary"]["symbols_changed"] >= 1
+
+
+def test_assistant_stream_reports_progress_and_validated_result(client, monkeypatch):
+    class StreamingAgent:
+        def __init__(self, *args):
+            pass
+
+        def ask(self, request, progress=None):
+            progress("Searching the code graph")
+            progress("Validating citations")
+            return Answer(
+                answer="Grounded streamed answer.",
+                confidence=0.8,
+                grounding="static-evidence",
+                session_id="stream-session",
+            )
+
+    monkeypatch.setattr(routes, "RepoAgent", StreamingAgent)
+    response = client.post(
+        "/api/repositories/r/ask/stream",
+        json={"question": "Explain authentication"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert [event["message"] for event in events if event["type"] == "status"] == [
+        "Searching the code graph",
+        "Validating citations",
+    ]
+    assert "".join(event["text"] for event in events if event["type"] == "delta") == "Grounded streamed answer."
+    assert events[-1]["type"] == "result"
+    assert events[-1]["answer"]["session_id"] == "stream-session"

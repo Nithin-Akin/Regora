@@ -35,7 +35,7 @@ import {
 import Brand from "./Brand";
 import SourceViewer from "./SourceViewer";
 import ThemeToggle from "./ThemeToggle";
-import { api, mergeGraph } from "@/lib/api";
+import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import type {
   Node,
   GraphData,
@@ -116,6 +116,7 @@ export default function Workspace({
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [asking, setAsking] = useState(false);
+  const [askStage, setAskStage] = useState("");
   const [session, setSession] = useState("");
   const [citation, setCitation] = useState<Citation | null>(null);
   const [impact, setImpact] = useState<Impact | null>(null);
@@ -362,22 +363,56 @@ export default function Workspace({
     setRightOpen(true);
     setMessages((m) => [...m, { role: "user", content: text }]);
     setAsking(true);
+    setAskStage("Starting analysis");
     setError("");
+    let assistantAdded = false;
     try {
-      const result = await api<Answer>(base + "/ask", {
-        method: "POST",
-        body: JSON.stringify({
+      const result = await streamAnswer(
+        base + "/ask/stream",
+        {
           question: text,
           session_id: session || null,
           symbol_id: selected?.id || null,
-        }),
-      });
+        },
+        (event) => {
+          if (event.type === "status") setAskStage(event.message);
+          if (event.type === "delta") {
+            if (!assistantAdded) {
+              assistantAdded = true;
+              setMessages((m) => [
+                ...m,
+                { role: "assistant", content: event.text, streaming: true },
+              ]);
+            } else {
+              setMessages((m) =>
+                m.map((message, index) =>
+                  index === m.length - 1
+                    ? { ...message, content: message.content + event.text }
+                    : message,
+                ),
+              );
+            }
+          }
+          if (event.type === "result") {
+            const finalMessage = {
+              role: "assistant" as const,
+              content: event.answer.answer,
+              result: event.answer,
+              streaming: false,
+            };
+            setMessages((m) =>
+              assistantAdded
+                ? m.map((message, index) =>
+                    index === m.length - 1 ? finalMessage : message,
+                  )
+                : [...m, finalMessage],
+            );
+            assistantAdded = true;
+          }
+        },
+      );
       setSession(result.session_id);
       localStorage.setItem("repograph-session-" + id, result.session_id);
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: result.answer, result },
-      ]);
       await showEvidence(result);
     } catch (e) {
       fail(e);
@@ -390,6 +425,7 @@ export default function Workspace({
       ]);
     } finally {
       setAsking(false);
+      setAskStage("");
     }
   }
   async function trace() {
@@ -1133,7 +1169,14 @@ export default function Workspace({
                   </div>
                 ) : (
                   messages.map((m, index) => (
-                    <div key={index} className={"chat-message " + m.role}>
+                    <div
+                      key={index}
+                      className={
+                        "chat-message " +
+                        m.role +
+                        (m.streaming ? " streaming" : "")
+                      }
+                    >
                       <div className="message-label">
                         {m.role === "assistant" ? (
                           <>
@@ -1203,7 +1246,7 @@ export default function Workspace({
                 {asking && (
                   <div className="thinking">
                     <LoaderCircle className="spin" size={15} />
-                    Retrieving evidence and reasoning…
+                    {askStage || "Retrieving evidence and reasoning"}…
                   </div>
                 )}
               </div>

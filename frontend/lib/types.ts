@@ -139,4 +139,10 @@ export type Message = {
   role: "user" | "assistant";
   content: string;
   result?: Answer;
+  streaming?: boolean;
 };
+export type AnswerStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "delta"; text: string }
+  | { type: "result"; answer: Answer }
+  | { type: "error"; detail: string };

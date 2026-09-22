@@ -25,6 +25,51 @@ export async function api<T>(
   if (response.status === 204) return undefined as T;
   return response.json();
 }
+
+export async function streamAnswer(
+  path: string,
+  body: Record<string, unknown>,
+  onEvent: (event: import("./types").AnswerStreamEvent) => void,
+): Promise<import("./types").Answer> {
+  const response = await fetch("/api" + path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/x-ndjson",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let detail = "Request failed. Check that the backend is running.";
+    try {
+      const value = await response.json();
+      if (typeof value.detail === "string") detail = value.detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  if (!response.body) throw new Error("Streaming is unavailable in this browser.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: import("./types").Answer | null = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = done ? "" : lines.pop() || "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line) as import("./types").AnswerStreamEvent;
+      onEvent(event);
+      if (event.type === "error") throw new Error(event.detail);
+      if (event.type === "result") result = event.answer;
+    }
+    if (done) break;
+  }
+  if (!result) throw new Error("The assistant stream ended before returning an answer.");
+  return result;
+}
 export function uploadRepository(
   file: File,
   onProgress: (progress: number) => void,
