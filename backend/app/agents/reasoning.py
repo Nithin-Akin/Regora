@@ -1,11 +1,13 @@
 import json
 import re
 from uuid import uuid4
+
 from pydantic import BaseModel, Field
-from app.models.schema import Answer, Citation
-from app.config import settings
+
 from app.agents.tools import AgentTools, schemas
+from app.config import settings
 from app.llm.providers import SYSTEM_PROMPT, get_llm
+from app.models.schema import Answer, Citation
 
 
 class GeneratedAnswer(BaseModel):
@@ -81,7 +83,11 @@ class RepoAgent:
         self.store = store
         self.llm = llm or get_llm()
 
-    def ask(self, request):
+    def ask(self, request, progress=None):
+        def report(message):
+            if progress:
+                progress(message)
+
         rid = next(iter(self.i.nodes.values())).repository_id
         session_id = request.session_id or str(uuid4())
         # Repository prefix prevents collisions between repository sessions.
@@ -99,6 +105,7 @@ class RepoAgent:
             evidence.append({"tool": name, "result": result})
             return result if for_model else raw_result
 
+        report("Searching the code graph")
         search = run("semantic_search", {"query": request.question})
         seeds = [row["id"] for row in search.get("results", [])][:4]
         # Explicit names and route strings outrank semantic candidates.
@@ -147,6 +154,7 @@ class RepoAgent:
         for seed in seeds[1:3]:
             if budget[0] > 3000:
                 run("get_source", {"symbol_id": seed})
+        report("Building grounded context")
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for message in state.get("messages", [])[-4:]:
             messages.append({"role": message["role"], "content": message["content"][:1500]})
@@ -160,6 +168,7 @@ class RepoAgent:
         grounding = "llm-with-evidence"
         generated = None
         try:
+            report("Generating an evidence-backed answer")
             max_rounds = 2 if settings().llm_provider == "ollama" else 4
             for iteration in range(max_rounds):
                 schema = GeneratedAnswer.model_json_schema()
@@ -234,6 +243,7 @@ class RepoAgent:
         else:
             text = self.facts(kind, seeds, computed)
             confidence = 0.8 if valid_ids else 0.0
+        report("Validating citations")
         citations = [
             Citation(
                 symbol_id=s,

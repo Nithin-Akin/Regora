@@ -1,10 +1,12 @@
 import json
+
 import pytest
-from app.retrieval.hybrid import HybridRetrieval
+from conftest import symbol
+
 from app.agents.reasoning import RepoAgent, intent
 from app.agents.tools import AgentTools
 from app.models.schema import AskRequest
-from conftest import symbol
+from app.retrieval.hybrid import HybridRetrieval
 
 
 class SessionStore:
@@ -70,6 +72,19 @@ def test_fallback_is_grounded_and_followups(demo_graph, demo_intelligence):
         assert c.start_line <= c.end_line
     next_answer = agent.ask(AskRequest(question="What calls it?", session_id=answer.session_id))
     assert symbol(demo_graph, "verify_token").id in next_answer.symbols
+
+
+def test_agent_reports_streaming_progress(demo_intelligence):
+    stages = []
+    RepoAgent(demo_intelligence, SessionStore(), Unavailable()).ask(
+        AskRequest(question="Explain verify_token"), progress=stages.append
+    )
+    assert stages == [
+        "Searching the code graph",
+        "Building grounded context",
+        "Generating an evidence-backed answer",
+        "Validating citations",
+    ]
 
 
 def test_rejects_fabricated_citations(demo_intelligence):

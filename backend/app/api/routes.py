@@ -1,22 +1,28 @@
 import json
+import re
 import shutil
 from pathlib import Path
+from queue import Queue as EventQueue
+from threading import Thread
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from rq import Queue
-from app.config import settings
-from app.graph.store import get_store, GraphStore
-from app.services.cache import redis_connection, intelligence, snapshot
-from app.workers.ingestion import ingest, job_failure, now
-from app.security.repositories import validate_github
-from app.models.schema import GitHubRequest, PullRequestRequest, AskRequest, TraceRequest
-from app.retrieval.hybrid import HybridRetrieval
+
 from app.agents.reasoning import RepoAgent
+from app.config import settings
+from app.graph.store import GraphStore, get_store
+from app.models.schema import AskRequest, GitHubRequest, PullRequestRequest, TraceRequest
+from app.retrieval.hybrid import HybridRetrieval
+from app.security.repositories import validate_github
+from app.services.cache import intelligence, redis_connection, snapshot
 from app.services.pull_requests import (
     analyze_pull_request,
     fetch_pull_request,
     validate_pull_request_repository,
 )
+from app.workers.ingestion import ingest, job_failure, now
 
 router = APIRouter(prefix="/api")
 ACTIVE = {"QUEUED", "CLONING", "SCANNING", "PARSING", "BUILDING_GRAPH", "EMBEDDING", "ANALYZING"}
@@ -343,6 +349,52 @@ def ask(id: str, request: AskRequest, i=Depends(ready), store: GraphStore = Depe
     if request.symbol_id and request.symbol_id not in i.nodes:
         raise HTTPException(404, "Selected symbol not found")
     return RepoAgent(i, store).ask(request)
+
+
+@router.post("/repositories/{id}/ask/stream")
+def ask_stream(id: str, request: AskRequest, i=Depends(ready), store: GraphStore = Depends(get_store)):
+    """Stream progress and a validated answer as newline-delimited JSON."""
+    if request.symbol_id and request.symbol_id not in i.nodes:
+        raise HTTPException(404, "Selected symbol not found")
+
+    events = EventQueue()
+
+    def publish(event):
+        events.put(event)
+
+    def run_agent():
+        try:
+            answer = RepoAgent(i, store).ask(
+                request,
+                progress=lambda message: publish({"type": "status", "message": message}),
+            )
+            publish({"type": "answer", "answer": answer.model_dump()})
+        except Exception:
+            publish({"type": "error", "detail": "The assistant could not complete this request."})
+        finally:
+            publish(None)
+
+    Thread(target=run_agent, daemon=True).start()
+
+    def stream():
+        while True:
+            event = events.get()
+            if event is None:
+                break
+            if event["type"] == "answer":
+                answer = event["answer"]
+                # Stream only after the answer and citations pass grounding validation.
+                for chunk in re.findall(r"\S+(?:\s+|$)", answer["answer"]):
+                    yield json.dumps({"type": "delta", "text": chunk}) + "\n"
+                yield json.dumps({"type": "result", "answer": answer}) + "\n"
+            else:
+                yield json.dumps(event) + "\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/repositories/{id}/chat/{session_id}")
