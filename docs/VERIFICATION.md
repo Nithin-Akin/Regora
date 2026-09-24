@@ -3,8 +3,8 @@
 Verified on 2026-09-14 against the local Docker stack.
 
 - Backend: 60 tests passed (parser, graph, security, retrieval, agent, API, pull request impact, and assistant streaming).
-- Frontend: 4 deterministic tests passed.
-- Browser: 2 tests passed against the running application, covering import controls, graph rendering, symbol search, source line highlights, impact, and mobile width.
+- Frontend: 6 deterministic tests passed.
+- Browser: 3 tests passed against the running application, covering import controls, graph rendering, symbol search, source line highlights, impact, report export, and mobile width.
 - Next.js production build and Docker Compose configuration passed.
 - Fresh ZIP upload: 2 files, 6 nodes, 8 relationships; semantic search returned real embedded results.
 - Fresh public GitHub import (`pallets/itsdangerous`): 15 files, 419 nodes, 872 relationships; semantic search passed.

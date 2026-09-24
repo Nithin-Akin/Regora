@@ -1488,6 +1488,37 @@ summary {
 .risk-score.compact strong {
   font-size: 32px;
 }
+.pr-report-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pr-report-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  font-size: 10px;
+}
+.pr-report-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.pr-report-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: var(--success-text);
+  font-size: 10px;
+}
 .pr-impact-panel h3 {
   font-size: 12px;
   margin: 23px 0 12px;

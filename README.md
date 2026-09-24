@@ -67,7 +67,7 @@ Actual screenshots from the running demo, captured by the browser tests.
 - **Overview:** actual counts, language distribution, connection hubs, cycles, potentially unused symbols, and an automatically generated architecture explanation.
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
-- **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols and inspect their static blast radius.
+- **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, and copy or download a Markdown report for reviews.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 
 Source citations open an integrated read-only, syntax-highlighted viewer at the indexed line range. Source is loaded lazily from the database, not from a client-supplied filesystem path.
