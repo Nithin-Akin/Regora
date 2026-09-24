@@ -123,3 +123,76 @@ test("real graph, search, source citations and impact", async ({
   ).toBeTruthy();
   expect(errors).toEqual([]);
 });
+
+test("exports a pull request impact report", async ({
+  page,
+  request,
+  context,
+}) => {
+  const repos = await (await request.get("/api/repositories")).json();
+  const repo = repos.find(
+    (r: { name: string; status: string }) =>
+      r.name === "Northstar Commerce" && r.status === "READY",
+  );
+  test.skip(
+    !repo,
+    "Run the demo evaluation first to index the included repository",
+  );
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.route("**/api/repositories/*/pull-request-impact", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        pull_request: {
+          number: 42,
+          title: "Change authentication",
+          url: "https://github.com/acme/shop/pull/42",
+          state: "open",
+          base: "main",
+          head: "auth-change",
+        },
+        summary: {
+          files_changed: 1,
+          symbols_changed: 1,
+          affected_files: 3,
+          affected_endpoints: 1,
+          score: 47,
+          risk: "MEDIUM",
+        },
+        files: [
+          {
+            path: "services/auth.py",
+            status: "modified",
+            additions: 8,
+            deletions: 3,
+            symbols: [],
+          },
+        ],
+        impacts: [],
+        unmatched_files: [],
+        graph: { nodes: [], edges: [] },
+        truncated: false,
+        caveat: "Potential impact is based on static dependencies.",
+      }),
+    });
+  });
+
+  await page.goto("/repository/" + repo.id);
+  await page.getByRole("button", { name: "PR Impact" }).click();
+  await page
+    .getByRole("textbox", { name: "GitHub pull request URL" })
+    .fill("https://github.com/acme/shop/pull/42");
+  await page.getByRole("button", { name: "Analyze pull request" }).click();
+  await expect(page.locator(".risk-score.compact")).toContainText("47");
+
+  await page.getByRole("button", { name: "Copy Markdown" }).click();
+  await expect(page.getByRole("status")).toHaveText("Markdown report copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+    "Highest risk: MEDIUM (47/100)",
+  );
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download report" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("regora-pr-42-impact.md");
+});

@@ -30,12 +30,18 @@ import {
   PanelLeftClose,
   PanelRightClose,
   Check,
+  Copy,
+  Download,
   AlertTriangle,
 } from "lucide-react";
 import Brand from "./Brand";
 import SourceViewer from "./SourceViewer";
 import ThemeToggle from "./ThemeToggle";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
+import {
+  buildPullRequestImpactMarkdown,
+  pullRequestReportFilename,
+} from "@/lib/pr-report";
 import type {
   Node,
   GraphData,
@@ -123,6 +129,7 @@ export default function Workspace({
   const [prUrl, setPrUrl] = useState("");
   const [prImpact, setPrImpact] = useState<PullRequestImpact | null>(null);
   const [prLoading, setPrLoading] = useState(false);
+  const [reportNotice, setReportNotice] = useState("");
   const [working, setWorking] = useState("");
   const [pathStart, setPathStart] = useState<Node | null>(null);
   const [pathNotice, setPathNotice] = useState("");
@@ -300,6 +307,7 @@ export default function Workspace({
     e.preventDefault();
     if (!prUrl.trim()) return;
     setPrLoading(true);
+    setReportNotice("");
     setError("");
     try {
       const result = await api<PullRequestImpact>(
@@ -320,6 +328,32 @@ export default function Workspace({
     } finally {
       setPrLoading(false);
     }
+  }
+
+  async function copyPullRequestReport() {
+    if (!prImpact) return;
+    try {
+      await navigator.clipboard.writeText(
+        buildPullRequestImpactMarkdown(prImpact),
+      );
+      setReportNotice("Markdown report copied");
+    } catch {
+      setReportNotice("Could not copy the report");
+    }
+  }
+
+  function downloadPullRequestReport() {
+    if (!prImpact) return;
+    const blob = new Blob([buildPullRequestImpactMarkdown(prImpact)], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = pullRequestReportFilename(prImpact);
+    link.click();
+    URL.revokeObjectURL(url);
+    setReportNotice("Markdown report downloaded");
   }
   useEffect(() => {
     if (initialImpact && repo?.status === "READY")
@@ -1499,6 +1533,25 @@ export default function Workspace({
                       </div>
                     ))}
                   </div>
+                  <div className="pr-report-actions">
+                    <button
+                      type="button"
+                      onClick={() => void copyPullRequestReport()}
+                    >
+                      <Copy size={14} />
+                      Copy Markdown
+                    </button>
+                    <button type="button" onClick={downloadPullRequestReport}>
+                      <Download size={14} />
+                      Download report
+                    </button>
+                  </div>
+                  {reportNotice && (
+                    <div className="pr-report-notice" role="status">
+                      <Check size={13} />
+                      {reportNotice}
+                    </div>
+                  )}
                   <h3>Highest impact symbols</h3>
                   {prImpact.impacts.length ? (
                     prImpact.impacts.slice(0, 8).map((item) => (
