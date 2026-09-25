@@ -69,6 +69,7 @@ Actual screenshots from the running demo, captured by the browser tests.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, and copy or download a Markdown report for reviews.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
+- **Grounded impact answers:** every assistant impact response leads with the deterministic score, direct and transitive blast radius, affected areas, endpoints, database interactions, depth, inheritance evidence, and static-analysis limits.
 
 Source citations open an integrated read-only, syntax-highlighted viewer at the indexed line range. Source is loaded lazily from the database, not from a client-supplied filesystem path.
 

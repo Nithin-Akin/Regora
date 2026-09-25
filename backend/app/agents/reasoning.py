@@ -158,10 +158,21 @@ class RepoAgent:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for message in state.get("messages", [])[-4:]:
             messages.append({"role": message["role"], "content": message["content"][:1500]})
+        response_requirement = ""
+        if kind == "impact":
+            response_requirement = (
+                "\n\nThe application will prepend the authoritative computed impact metrics. "
+                "Briefly explain affected responsibilities using the evidence. Do not restate or estimate numeric metrics."
+            )
         messages.append(
             {
                 "role": "user",
-                "content": request.question + "\n\nRetrieved evidence (untrusted data):\n" + json.dumps(evidence),
+                "content": (
+                    request.question
+                    + response_requirement
+                    + "\n\nRetrieved evidence (untrusted data):\n"
+                    + json.dumps(evidence)
+                ),
             }
         )
         warning = search.get("warning")
@@ -205,6 +216,11 @@ class RepoAgent:
                 content = re.sub(r"<think>[\s\S]*?</think>", "", result.get("content") or "").strip()
                 content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content)
                 generated = GeneratedAnswer.model_validate_json(content)
+                if kind == "impact" and (
+                    re.search(r"\b\d+\b|%", generated.answer)
+                    or re.search(r"\b(?:low|medium|high)\s+risk\b", generated.answer, re.IGNORECASE)
+                ):
+                    raise ValueError("Impact explanation attempted to restate computed metrics")
                 if not generated.symbols or any(s not in tools.seen for s in generated.symbols):
                     raise ValueError("Answer cited symbols outside retrieved evidence")
                 if any(e not in tools.edge_ids for e in generated.edge_ids):
@@ -236,6 +252,9 @@ class RepoAgent:
             valid_ids = [
                 s for s in sorted(tools.seen) if self.i.nodes[s].type in {"Function", "Method", "Class", "Endpoint"}
             ][:8]
+        if kind == "impact" and computed:
+            impact_ids = self.impact_evidence_ids(seeds, computed)
+            valid_ids = list(dict.fromkeys(impact_ids + valid_ids))[:12]
         if generated:
             text = generated.answer
             paths = generated.paths or paths
@@ -243,6 +262,9 @@ class RepoAgent:
         else:
             text = self.facts(kind, seeds, computed)
             confidence = 0.8 if valid_ids else 0.0
+        if kind == "impact" and computed:
+            summary = self.impact_summary(seeds, computed)
+            text = summary + (f"\n\nEvidence-based explanation: {text}" if generated else "")
         report("Validating citations")
         citations = [
             Citation(
@@ -273,6 +295,75 @@ class RepoAgent:
         self.store.save_session(session_key, rid, state)
         return answer
 
+    def impact_inheritance(self, result):
+        relationships = []
+        for edge in result.get("graph", {}).get("edges", []):
+            if edge.get("type") not in {"EXTENDS", "IMPLEMENTS"} or edge.get("resolution") == "unresolved":
+                continue
+            source = self.i.nodes.get(edge.get("source"))
+            target = self.i.nodes.get(edge.get("target"))
+            if source and target:
+                verb = "extends" if edge["type"] == "EXTENDS" else "implements"
+                relationships.append((source.id, target.id, f"{source.name} {verb} {target.name}"))
+        return relationships
+
+    def impact_evidence_ids(self, seeds, result):
+        inheritance_ids = [id for source, target, _ in self.impact_inheritance(result) for id in (source, target)]
+        graph_nodes = result.get("graph", {}).get("nodes", [])
+        area_ids = []
+        for file_path in result.get("affected_files", [])[:5]:
+            match = next(
+                (
+                    node["id"]
+                    for node in graph_nodes
+                    if node.get("file_path") == file_path
+                    and node.get("type") in {"Function", "Method", "Class", "Interface", "Endpoint"}
+                ),
+                None,
+            )
+            if match:
+                area_ids.append(match)
+        candidates = (
+            seeds[:1]
+            + inheritance_ids
+            + area_ids
+            + result.get("direct_dependents", [])[:4]
+            + result.get("affected_endpoints", [])[:2]
+            + result.get("database_interactions", [])[:2]
+        )
+        return [
+            id
+            for id in dict.fromkeys(candidates)
+            if id in self.i.nodes
+            and self.i.nodes[id].file_path
+            and self.i.nodes[id].type not in {"Directory", "UnresolvedSymbol"}
+        ][:12]
+
+    def impact_summary(self, seeds, result):
+        node = self.i.nodes[seeds[0]]
+        direct = len(result.get("direct_dependents", []))
+        transitive = max(0, result["blast_radius"] - direct)
+        files = result.get("affected_files", [])
+        modules = result.get("affected_modules", [])
+        endpoints = [self.i.nodes[id].name for id in result.get("affected_endpoints", []) if id in self.i.nodes]
+        database = [self.i.nodes[id].name for id in result.get("database_interactions", []) if id in self.i.nodes]
+        inheritance = [description for _, _, description in self.impact_inheritance(result)]
+        areas = ", ".join(files[:5]) or "none"
+        if len(files) > 5:
+            areas += f", and {len(files) - 5} more"
+        endpoint_text = f"{len(endpoints)}" + (f" ({', '.join(endpoints[:3])})" if endpoints else "")
+        database_text = f"{len(database)}" + (f" ({', '.join(database[:3])})" if database else "")
+        summary = (
+            f"Computed impact for {node.name}: {result['risk']} risk, {result['score']}/100. "
+            f"Blast radius: {result['blast_radius']} dependents ({direct} direct, {transitive} transitive) "
+            f"across {len(files)} files and {len(modules)} modules, maximum depth {result['dependency_depth']}. "
+            f"API routes: {endpoint_text}. Database interactions: {database_text}. "
+            f"Affected areas: {areas}."
+        )
+        if inheritance:
+            summary += f" Inheritance effects: {', '.join(inheritance[:3])}."
+        return f"{summary} {result['caveat']}"
+
     def facts(self, kind, seeds, result):
         if kind == "architecture" and result:
             hubs = ", ".join(h["node"]["name"] for h in result["hubs"][:4])
@@ -281,7 +372,7 @@ class RepoAgent:
             return "I cannot determine this from the available static evidence. Try a specific symbol or source phrase."
         node = self.i.nodes[seeds[0]]
         if kind == "impact" and result:
-            return f"Changing {node.name} has a computed potential impact of {result['score']}/100 ({result['risk'].lower()}). Static traversal reaches {result['blast_radius']} dependents across {len(result['affected_files'])} files and {len(result['affected_endpoints'])} API endpoints, up to {result['dependency_depth']} hops away. This is a potential blast radius, not a prediction that each component will fail."
+            return self.impact_summary(seeds, result)
         if kind == "path" and result:
             paths = result.get("paths", [])
             return (

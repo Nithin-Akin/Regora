@@ -65,13 +65,98 @@ def test_fallback_is_grounded_and_followups(demo_graph, demo_intelligence):
     agent = RepoAgent(demo_intelligence, store, Unavailable())
     answer = agent.ask(AskRequest(question="What could break if I modify verify_token?"))
     assert answer.grounding == "static-evidence"
-    assert "computed" in answer.answer
+    assert "computed impact" in answer.answer.lower()
     assert answer.citations
     for c in answer.citations:
         assert c.symbol_id in demo_intelligence.nodes
         assert c.start_line <= c.end_line
     next_answer = agent.ask(AskRequest(question="What calls it?", session_id=answer.session_id))
     assert symbol(demo_graph, "verify_token").id in next_answer.symbols
+
+
+def test_impact_answer_keeps_computed_contract_when_model_succeeds(demo_graph, demo_intelligence):
+    payment = symbol(demo_graph, "PaymentService")
+    computed = demo_intelligence.impact(payment.id)
+
+    class ImpactLLM:
+        def complete(self, *args):
+            return {
+                "content": json.dumps(
+                    {
+                        "answer": "Payment and audit responsibilities should be reviewed together.",
+                        "confidence": 0.9,
+                        "symbols": [payment.id],
+                        "paths": [],
+                        "edge_ids": [],
+                    }
+                )
+            }
+
+    answer = RepoAgent(demo_intelligence, SessionStore(), ImpactLLM()).ask(
+        AskRequest(question="What could break if PaymentService changes?")
+    )
+    direct = len(computed["direct_dependents"])
+    transitive = computed["blast_radius"] - direct
+    assert answer.grounding == "llm-with-evidence"
+    assert answer.answer.startswith(
+        f"Computed impact for PaymentService: {computed['risk']} risk, {computed['score']}/100."
+    )
+    assert f"{direct} direct, {transitive} transitive" in answer.answer
+    assert f"across {len(computed['affected_files'])} files" in answer.answer
+    assert f"maximum depth {computed['dependency_depth']}" in answer.answer
+    assert "API routes:" in answer.answer
+    assert "Database interactions:" in answer.answer
+    assert "Evidence-based explanation:" in answer.answer
+
+
+def test_impact_answer_rejects_model_metric_claims(demo_graph, demo_intelligence):
+    payment = symbol(demo_graph, "PaymentService")
+
+    class ContradictingImpactLLM:
+        def complete(self, *args):
+            return {
+                "content": json.dumps(
+                    {
+                        "answer": "This is low risk with 1 affected file.",
+                        "confidence": 0.99,
+                        "symbols": [payment.id],
+                        "paths": [],
+                        "edge_ids": [],
+                    }
+                )
+            }
+
+    answer = RepoAgent(demo_intelligence, SessionStore(), ContradictingImpactLLM()).ask(
+        AskRequest(question="What could break if PaymentService changes?")
+    )
+    computed = demo_intelligence.impact(payment.id)
+    assert answer.grounding == "static-evidence"
+    assert f"{computed['risk']} risk, {computed['score']}/100" in answer.answer
+    assert "low risk with 1 affected file" not in answer.answer
+    assert "attempted to restate computed metrics" in answer.warning
+
+
+def test_impact_summary_includes_inheritance_evidence(parse):
+    from app.graph.intelligence import Intelligence
+
+    graph = parse(
+        {
+            "signer.py": "class Signer:\n    def sign(self, value): return value\n",
+            "timed.py": (
+                "from signer import Signer\nclass TimestampSigner(Signer):\n    def unsign(self, value): return value\n"
+            ),
+        }
+    )
+    intelligence = Intelligence(graph)
+    signer = symbol(graph, "Signer")
+    result = intelligence.impact(signer.id)
+    agent = RepoAgent(intelligence, SessionStore(), Unavailable())
+    summary = agent.impact_summary([signer.id], result)
+    evidence_ids = agent.impact_evidence_ids([signer.id], result)
+    timestamp_signer = symbol(graph, "TimestampSigner")
+    assert "Inheritance effects: TimestampSigner extends Signer." in summary
+    assert signer.id in evidence_ids
+    assert timestamp_signer.id in evidence_ids
 
 
 def test_agent_reports_streaming_progress(demo_intelligence):

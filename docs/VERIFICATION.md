@@ -2,7 +2,7 @@
 
 Verified on 2026-09-14 against the local Docker stack.
 
-- Backend: 60 tests passed (parser, graph, security, retrieval, agent, API, pull request impact, and assistant streaming).
+- Backend: 63 tests passed (parser, graph, security, retrieval, agent, API, pull request impact, assistant streaming, and grounded impact contracts).
 - Frontend: 6 deterministic tests passed.
 - Browser: 3 tests passed against the running application, covering import controls, graph rendering, symbol search, source line highlights, impact, report export, and mobile width.
 - Next.js production build and Docker Compose configuration passed.

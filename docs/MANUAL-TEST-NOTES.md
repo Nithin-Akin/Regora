@@ -32,6 +32,8 @@ Finding: The `serializer.py` citation at lines 278–285 supports `make_signer`,
 
 Expected behavior: Impact answers should lead with the calculated risk score and blast radius, summarize affected source areas and tests, identify important inheritance such as `TimestampSigner`, distinguish direct from transitive effects, state that no endpoints or database entities are involved, and attach a citation to each important claim.
 
+Resolution: Implemented in PR #3. Impact answers now prepend an application-generated evidence contract before any model explanation, and citation selection prioritizes the analyzed symbol, inheritance relationships, direct dependents, endpoints, and database interactions.
+
 ## ItsDangerous `Signer` impact panel
 
 Result: Passed. The deterministic impact panel matched the backend reference result: Medium risk, score 33/100, 12 dependents, 8 affected files, no API routes, and maximum depth 3. The displayed score contributions were internally consistent: direct dependents +20, transitive dependents +4, API endpoints +0, cross-module reach +3, database writes +0, and dependency depth +6, totaling 33.
