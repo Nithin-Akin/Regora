@@ -46,7 +46,7 @@ docker compose down
 
 ## Screenshots
 
-Actual screenshots from the running demo, captured by the browser tests.
+Actual screenshots from the running demo. Normal browser tests write ignored artifacts under `frontend/test-results/screenshots`; run `npm run test:e2e:update-screenshots` inside `frontend` only when intentionally refreshing these documentation images.
 
 ![Regora workspace](docs/screenshots/workspace.png)
 
@@ -259,7 +259,7 @@ npm --prefix frontend run dev
 
 The backend's development defaults use localhost services, `backend/data`, and `../demo/shop`. The root `.env` is intended for Compose and is not implicitly loaded from the backend working directory. On macOS, run the worker in Docker if your Python/native libraries have fork restrictions. Stop the corresponding Compose API/frontend/worker before starting local equivalents on the same ports.
 
-Dependency versions were resolved from current stable registry releases. `backend/uv.lock` and `frontend/package-lock.json` pin the tested dependency graph. Docker builds use frozen installs.
+Dependency versions were resolved from current stable registry releases. `backend/uv.lock` and `frontend/package-lock.json` pin the tested dependency graph. Docker builds use frozen installs, a pinned uv image, and BuildKit caches for Python and npm downloads so retries do not start dependency downloads from zero.
 
 ## Tests and evaluation
 
@@ -300,7 +300,7 @@ npm run test:e2e
 
 Regora is available under the [MIT License](LICENSE).
 
-These check the landing import controls, responsive width, graph canvas, actual symbol search, source ranges, and impact panel. They save screenshots to `docs/screenshots`. The API smoke script uploads an actual ZIP and shallow-clones the public `pallets/itsdangerous` repository; no database manipulation or mock graph is used.
+These check the landing import controls, responsive width, graph canvas, actual symbol search, source ranges, impact panel, and PR report export. Normal runs save ignored screenshots to `frontend/test-results/screenshots` and leave tracked documentation unchanged. The API smoke script uploads an actual ZIP and shallow-clones the public `pallets/itsdangerous` repository; no database manipulation or mock graph is used.
 
 ## Demo questions
 
