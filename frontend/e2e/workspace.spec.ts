@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 
+const screenshotPath = (name: string) =>
+  process.env.UPDATE_SCREENSHOTS === "1"
+    ? `../docs/screenshots/${name}`
+    : `test-results/screenshots/${name}`;
+
 test("landing page imports and mobile layout", async ({ page }) => {
   await page.goto("/");
   await expect(
@@ -13,7 +18,7 @@ test("landing page imports and mobile layout", async ({ page }) => {
   await page.getByRole("tab", { name: "Upload ZIP" }).click();
   await expect(page.getByText("Drop your repository here")).toBeVisible();
   await page.screenshot({
-    path: "../docs/screenshots/landing.png",
+    path: screenshotPath("landing.png"),
     fullPage: true,
   });
   const lightTheme = page.getByRole("button", { name: "Light" });
@@ -22,7 +27,7 @@ test("landing page imports and mobile layout", async ({ page }) => {
   await expect(lightTheme).toHaveAttribute("aria-pressed", "true");
   await page.waitForTimeout(200);
   await page.screenshot({
-    path: "../docs/screenshots/theme-light.png",
+    path: screenshotPath("theme-light.png"),
     fullPage: true,
   });
   await page.reload();
@@ -33,7 +38,7 @@ test("landing page imports and mobile layout", async ({ page }) => {
   await expect(amoledTheme).toHaveAttribute("aria-pressed", "true");
   await page.waitForTimeout(200);
   await page.screenshot({
-    path: "../docs/screenshots/theme-amoled.png",
+    path: screenshotPath("theme-amoled.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Dark" }).click();
@@ -70,7 +75,7 @@ test("real graph, search, source citations and impact", async ({
   await expect(page.locator(".cy-container canvas").first()).toBeVisible();
   await expect(page.locator(".graph-status")).toContainText("nodes");
   await page.screenshot({
-    path: "../docs/screenshots/workspace.png",
+    path: screenshotPath("workspace.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "PR Impact" }).click();
@@ -112,7 +117,7 @@ test("real graph, search, source citations and impact", async ({
   await expect(page.locator(".risk-score")).toBeVisible();
   await expect(page.locator(".impact-panel")).toContainText("api/routes.py");
   await page.screenshot({
-    path: "../docs/screenshots/impact.png",
+    path: screenshotPath("impact.png"),
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
