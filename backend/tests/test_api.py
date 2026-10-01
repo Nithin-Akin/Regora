@@ -8,13 +8,27 @@ from app.api.routes import ready
 from app.graph.store import get_store
 from app.main import app
 from app.models.schema import Answer
+from app.security.auth import CurrentUser, current_user
 
 
 class FakeStore:
-    def repositories(self):
-        return [{"id": "r", "name": "Test", "status": "READY", "source_root": "private", "logs": "[]"}]
+    def repositories(self, owner_id=None):
+        return (
+            [
+                {
+                    "id": "r",
+                    "name": "Test",
+                    "status": "READY",
+                    "source_root": "private",
+                    "owner_id": "local",
+                    "logs": "[]",
+                }
+            ]
+            if owner_id == "local"
+            else []
+        )
 
-    def repository(self, id):
+    def repository(self, id, owner_id=None):
         return (
             {
                 "id": "r",
@@ -24,7 +38,7 @@ class FakeStore:
                 "kind": "github",
                 "source": "https://github.com/acme/shop",
             }
-            if id == "r"
+            if id == "r" and owner_id in {None, "local"}
             else None
         )
 
@@ -41,6 +55,13 @@ def test_repository_metadata_hides_filesystem(client):
     response = client.get("/api/repositories")
     assert response.status_code == 200
     assert "source_root" not in response.json()[0]
+    assert "owner_id" not in response.json()[0]
+
+
+def test_repository_access_is_scoped_to_owner(client):
+    app.dependency_overrides[current_user] = lambda: CurrentUser("github:99")
+    assert client.get("/api/repositories").json() == []
+    assert client.get("/api/repositories/r/status").status_code == 404
 
 
 def test_invalid_github_is_rejected_before_queue(client):
@@ -76,7 +97,7 @@ def test_pull_request_impact_endpoint(client, monkeypatch):
     monkeypatch.setattr(
         routes,
         "fetch_pull_request",
-        lambda url: {
+        lambda url, token="": {
             "owner": "acme",
             "repository": "shop",
             "pull_request": {

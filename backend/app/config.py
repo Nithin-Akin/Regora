@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,9 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "http://localhost:11434/v1"
     github_token: str = ""
+    auth_mode: Literal["local", "github"] = "local"
+    auth_shared_secret: str = ""
+    auth_header_ttl: int = 60
     max_archive_mb: int = 50
     max_extracted_mb: int = 250
     max_files: int = 10000

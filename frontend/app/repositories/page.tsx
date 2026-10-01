@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import ThemeToggle from "@/components/ThemeToggle";
+import AccountMenu from "@/components/AccountMenu";
 import { api } from "@/lib/api";
 import type { Repository } from "@/lib/types";
 export default function Repositories() {
@@ -37,6 +38,7 @@ export default function Repositories() {
         <Brand />
         <div className="topbar-actions">
           <ThemeToggle />
+          <AccountMenu />
           <Link className="button primary" href="/">
             <Plus size={16} />
             Add repository

@@ -37,6 +37,7 @@ import {
 import Brand from "./Brand";
 import SourceViewer from "./SourceViewer";
 import ThemeToggle from "./ThemeToggle";
+import AccountMenu from "./AccountMenu";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import {
   buildPullRequestImpactMarkdown,
@@ -541,6 +542,7 @@ export default function Workspace({
           <Brand />
           <div className="topbar-actions">
             <ThemeToggle />
+            <AccountMenu />
             <Link href="/repositories">
               Repositories <ArrowRight size={16} />
             </Link>
@@ -638,6 +640,7 @@ export default function Workspace({
         </span>
         <div className="header-end">
           <ThemeToggle />
+          <AccountMenu />
           <span className="fingerprint">{repo.fingerprint?.slice(0, 8)}</span>
           <button
             className="icon-button"

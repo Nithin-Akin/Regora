@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Providers from "@/components/Providers";
 
 const themeScript = `(function(){try{var t=localStorage.getItem("regora-theme");document.documentElement.dataset.theme=t==="light"||t==="amoled"||t==="dark"?t:"dark"}catch(e){document.documentElement.dataset.theme="dark"}})()`;
 
@@ -19,7 +20,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body><Providers>{children}</Providers></body>
     </html>
   );
 }

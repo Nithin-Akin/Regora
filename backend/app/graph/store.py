@@ -35,15 +35,31 @@ class GraphStore:
     def update_repository(self, id, **fields):
         self.query("MATCH (r:RepositoryMeta {id:$id}) SET r += $fields", id=id, fields=fields)
 
-    def repository(self, id):
-        rows = self.query("MATCH (r:RepositoryMeta {id:$id}) RETURN properties(r) AS repo", id=id)
+    def repository(self, id, owner_id=None):
+        ownership = (
+            " AND (r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL))"
+            if owner_id is not None
+            else ""
+        )
+        rows = self.query(
+            f"MATCH (r:RepositoryMeta {{id:$id}}) WHERE true{ownership} RETURN properties(r) AS repo",
+            id=id,
+            owner_id=owner_id,
+        )
         return rows[0]["repo"] if rows else None
 
-    def repositories(self):
+    def repositories(self, owner_id=None):
+        ownership = (
+            "WHERE r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL)"
+            if owner_id is not None
+            else ""
+        )
         return [
             r["repo"]
             for r in self.query(
-                "MATCH (r:RepositoryMeta) RETURN properties(r) AS repo ORDER BY r.created_at DESC LIMIT 100"
+                f"MATCH (r:RepositoryMeta) {ownership} RETURN properties(r) AS repo "
+                "ORDER BY r.created_at DESC LIMIT 100",
+                owner_id=owner_id,
             )
         ]
 

@@ -78,6 +78,13 @@ services:
     build: ./frontend
     environment:
       BACKEND_URL: http://backend:8000
+      AUTH_MODE: ${AUTH_MODE:-local}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      AUTH_SHARED_SECRET: ${AUTH_SHARED_SECRET:-}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
+      AUTH_TRUST_HOST: "true"
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
