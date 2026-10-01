@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import ThemeToggle from "@/components/ThemeToggle";
+import AccountMenu from "@/components/AccountMenu";
 import { api, uploadRepository } from "@/lib/api";
 
 export default function Home() {
@@ -53,6 +54,7 @@ export default function Home() {
         <Brand />
         <nav>
           <ThemeToggle />
+          <AccountMenu />
           <Link href="/repositories">
             <FolderGit2 size={16} />
             Your repositories
@@ -120,7 +122,7 @@ export default function Home() {
           >
             {mode === "github" ? (
               <div className="form-field">
-                <label htmlFor="repo-url">Public repository URL</label>
+                <label htmlFor="repo-url">GitHub repository URL</label>
                 <div className="input-icon">
                   <GitBranch size={17} />
                   <input
@@ -134,7 +136,7 @@ export default function Home() {
                   />
                 </div>
                 <p className="hint">
-                  Python, JavaScript, and TypeScript supported.
+                  Public repositories work locally. GitHub sign-in also enables repositories your account can access.
                 </p>
               </div>
             ) : (

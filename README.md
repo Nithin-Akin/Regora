@@ -42,7 +42,28 @@ docker compose ps
 docker compose down
 ```
 
-`docker compose down` preserves indexed repositories and downloaded models. Avoid `down -v` unless you intend to discard that data. All published ports bind to loopback. This is a single-user local application, not an authenticated multi-tenant deployment.
+`docker compose down` preserves indexed repositories and downloaded models. Avoid `down -v` unless you intend to discard that data. All published ports bind to loopback. The default `AUTH_MODE=local` keeps the zero-setup single-user experience. GitHub authentication and owner-isolated workspaces can be enabled for a shared deployment.
+
+## GitHub authentication
+
+Set `AUTH_MODE=github` to require GitHub sign-in. The browser never calls the Python API directly: a Next.js gateway validates the encrypted session, signs a short-lived internal identity, and the backend checks repository ownership before loading graph data. GitHub access tokens stay on the server, are used for repositories and pull requests the user can access, and are removed from Redis as soon as a queued clone starts.
+
+1. Create a GitHub OAuth App under **Settings → Developer settings → OAuth Apps**.
+2. Use `http://localhost:3000` as the homepage URL for local testing.
+3. Use `http://localhost:3000/api/auth/callback/github` as its authorization callback URL.
+4. Generate two independent secrets with `openssl rand -base64 32`.
+5. Set these values in `.env`:
+
+```dotenv
+AUTH_MODE=github
+AUTH_URL=http://localhost:3000
+AUTH_SECRET=first-generated-secret
+AUTH_SHARED_SECRET=second-generated-secret
+AUTH_GITHUB_ID=your-oauth-client-id
+AUTH_GITHUB_SECRET=your-oauth-client-secret
+```
+
+Restart with `docker compose up -d --build`. OAuth mode requests GitHub's `repo` scope because classic OAuth Apps do not offer a read-only private-repository scope. Use a dedicated OAuth App and review its access before a public deployment. Repositories created in local mode remain in the local workspace and are intentionally hidden from signed-in GitHub users.
 
 ## Screenshots
 
@@ -77,11 +98,14 @@ Source citations open an integrated read-only, syntax-highlighted viewer at the 
 
 ```mermaid
 flowchart LR
-    Browser[Next.js / Cytoscape workspace] --> API[FastAPI]
+    Browser[Next.js / Cytoscape workspace] --> Gateway[Signed Next.js API gateway]
+    Browser --> Auth[Auth.js / GitHub OAuth]
+    Auth --> Gateway
+    Gateway --> API
     API --> Meta[Neo4j RepositoryMeta / ChatSession]
     API --> Queue[Redis / RQ queue]
     Queue --> Worker[Isolated ingestion worker]
-    Worker --> Source[Bounded ZIP extraction / public GitHub clone]
+    Worker --> Source[Bounded ZIP extraction / authorized GitHub clone]
     Source --> Parse[Tree-sitter language adapters]
     Parse --> Resolve[Conservative symbol resolution]
     Resolve --> Graph[Neo4j CodeNode + typed relationships]
@@ -218,6 +242,11 @@ Copy `.env.example` and edit values before starting Compose. Compose fixes its i
 | `LLM_BASE_URL` | `http://ollama:11434/v1` |
 | `LLM_API_KEY` | Empty for local Ollama |
 | `GITHUB_TOKEN` | Optional token for a higher public pull request API rate limit |
+| `AUTH_MODE` | `local` for zero-setup use or `github` for authenticated owner-isolated workspaces |
+| `AUTH_URL` | Public application origin used for OAuth redirects, such as `http://localhost:3000` |
+| `AUTH_SECRET` | Encrypts Auth.js sessions; required in GitHub mode |
+| `AUTH_SHARED_SECRET` | Signs short-lived gateway identity headers; required in GitHub mode and at least 32 characters |
+| `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` | GitHub OAuth App credentials |
 | `EMBEDDING_PROVIDER` | `local` or `cloud` |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` |
 | `EMBEDDING_DIMENSIONS` | `384`; must match the selected model/index |
@@ -275,7 +304,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-Coverage includes functions/methods, cross-file imports and aliases, inheritance, endpoint patterns, lexical shadowing, reassigned instances, unresolved targets, ORM evidence, cycles, impact, safe source access, ZIP traversal/symlinks/limits, URL validation, provider failure, rejected fabricated citations, and an actual tool-call round with a deterministic test provider.
+Coverage includes functions/methods, cross-file imports and aliases, inheritance, endpoint patterns, lexical shadowing, reassigned instances, unresolved targets, ORM evidence, cycles, impact, signed gateway identities, repository ownership, safe source access, ZIP traversal/symlinks/limits, URL validation, provider failure, rejected fabricated citations, and an actual tool-call round with a deterministic test provider.
 
 Run live evaluation against the complete stack:
 
@@ -317,13 +346,13 @@ Northstar Commerce includes authentication, users, orders, payments, a Stripe bo
 ## Security and operational limits
 
 - Reject absolute/traversing ZIP paths, Windows path syntax, symlinks, over-limit members, expanded sizes, and excessive entries. Extract only into isolated repository directories.
-- GitHub URLs must be canonical public HTTPS repository URLs. Clone with an argument array, disabled hooks/prompts/system Git configuration, no submodules, no shell interpolation, and time/size limits.
+- GitHub URLs must be canonical HTTPS repository URLs. Clone with an argument array, disabled hooks/prompts/system Git configuration, no submodules, no shell interpolation, and time/size limits. In OAuth mode, the access token is supplied through a process-only Git configuration header and never embedded in the URL or command arguments.
 - Ignore symlinks, binaries, minified/generated code, dependency caches, virtual environments, build output, and vendor directories.
 - API source requests read only indexed File nodes. Tool IDs are repository-scoped and tool names are allowlisted. Parameterized Cypher is used throughout.
 - Repository text is untrusted evidence. It cannot define tools, override the system prompt, or authorize execution.
 - Uploaded ZIP archives are removed after processing. Worker startup also removes orphan work directories and expired temporary uploads older than 24 hours, without deleting indexed source. Indexed source is retained for citations and reindexing until repository deletion. Failed jobs remain inspectable and can be deleted/retried. Active jobs cannot be deleted mid-write.
 - Initial architecture maps cap at 100 components; graph responses at 500 nodes; neighborhoods at five hops; dependency/impact traces at eight hops; paths at 16 nodes; code search at 50 results; graphs at 50,000 nodes. No giant graph is rendered by default.
-- Queue health checks, persistent Redis/Neo4j volumes, structured stage logs, and useful HTTP errors are included. There is no authentication, per-user quota, distributed tracing, or production tenancy layer.
+- Queue health checks, persistent Redis/Neo4j volumes, structured stage logs, GitHub authentication, owner-isolated repositories, and useful HTTP errors are included. Per-user quotas, team organizations, distributed tracing, and billing are not included.
 
 ## Static-analysis limitations and extensions
 
@@ -331,4 +360,4 @@ Python/JS/TS support covers common declarations, imports, aliases, lexical calls
 
 Database interaction patterns are probable static evidence, not proof of an executed transaction. Plain source secrets are not automatically redacted before analysis; keep sensitive repositories local or use an approved provider. Large repositories are bounded rather than claimed to support unlimited graph materialization. Endpoints absent from recognized static patterns are not fabricated.
 
-Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, signed-in multi-user deployments, GitHub App authorization, and a larger manually reviewed grounding evaluation set.
+Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, GitHub App installation authorization, team workspaces, and a larger manually reviewed grounding evaluation set.

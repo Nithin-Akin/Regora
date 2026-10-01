@@ -1,6 +1,7 @@
 """Only read source: bounded extraction, no shell, no hooks, no symlink traversal."""
 
 import os
+import base64
 import re
 import shutil
 import stat
@@ -42,7 +43,7 @@ EXTENSIONS = {
 
 def validate_github(url: str) -> str:
     if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?/?", url):
-        raise ValueError("Use a public repository URL: https://github.com/owner/repository")
+        raise ValueError("Use a GitHub repository URL: https://github.com/owner/repository")
     parts = url.rstrip("/").split("/")
     if any(p in {".", ".."} for p in parts[-2:]):
         raise ValueError("Invalid GitHub repository path")
@@ -85,9 +86,23 @@ def extract_zip(archive: Path, destination: Path):
     return children[0] if len(children) == 1 and children[0].is_dir() else destination
 
 
-def clone_github(url: str, destination: Path):
-    url = validate_github(url)
+def github_clone_environment(token: str = "") -> dict[str, str]:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+    if token:
+        credentials = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+        env.update(
+            {
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+                "GIT_CONFIG_VALUE_0": f"Authorization: Basic {credentials}",
+            }
+        )
+    return env
+
+
+def clone_github(url: str, destination: Path, token: str = ""):
+    url = validate_github(url)
+    env = github_clone_environment(token)
     command = [
         "git",
         "-c",
@@ -126,7 +141,7 @@ def clone_github(url: str, destination: Path):
                     raise ValueError("GitHub clone exceeded size, file count, or 120-second time limit")
                 time.sleep(0.2)
             if process.returncode:
-                raise ValueError("GitHub clone failed. Check that the repository is public and the URL exists.")
+                raise ValueError("GitHub clone failed. Check the repository URL and your GitHub access.")
         finally:
             if process.poll() is None:
                 process.kill()

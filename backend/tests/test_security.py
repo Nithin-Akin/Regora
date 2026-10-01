@@ -1,7 +1,7 @@
 import stat
 import zipfile
 import pytest
-from app.security.repositories import extract_zip, validate_github, scan_files
+from app.security.repositories import extract_zip, github_clone_environment, validate_github, scan_files
 
 
 @pytest.mark.parametrize("name", ["../../etc/passwd", "/tmp/file", "C:/file", "a\\b"])
@@ -34,13 +34,20 @@ def test_zip_rejects_symlinks(tmp_path):
         "file:///tmp/repo",
     ],
 )
-def test_github_url_rejects_non_public_repo_urls(url):
+def test_github_url_rejects_noncanonical_repo_urls(url):
     with pytest.raises(ValueError):
         validate_github(url)
 
 
-def test_github_url_accepts_public():
+def test_github_url_accepts_canonical_url():
     assert validate_github("https://github.com/tree-sitter/tree-sitter.git")
+
+
+def test_private_clone_token_uses_process_environment_not_url():
+    env = github_clone_environment("secret-token")
+    assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    assert env["GIT_CONFIG_VALUE_0"].startswith("Authorization: Basic ")
+    assert "secret-token" not in env["GIT_CONFIG_VALUE_0"]
 
 
 def test_scan_ignores_symlinks_vendor_minified(tmp_path):

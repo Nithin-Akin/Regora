@@ -16,6 +16,7 @@ from app.graph.store import GraphStore, get_store
 from app.models.schema import AskRequest, GitHubRequest, PullRequestRequest, TraceRequest
 from app.retrieval.hybrid import HybridRetrieval
 from app.security.repositories import validate_github
+from app.security.auth import CurrentUser, current_user
 from app.services.cache import intelligence, redis_connection, snapshot
 from app.services.pull_requests import (
     analyze_pull_request,
@@ -28,29 +29,37 @@ router = APIRouter(prefix="/api")
 ACTIVE = {"QUEUED", "CLONING", "SCANNING", "PARSING", "BUILDING_GRAPH", "EMBEDDING", "ANALYZING"}
 
 
-def repo_or_404(id, store):
-    repo = store.repository(id)
+def repo_or_404(id, store, owner_id):
+    repo = store.repository(id, owner_id)
     if not repo:
         raise HTTPException(404, "Repository not found")
     return repo
 
 
-def ready(id, store=Depends(get_store)):
-    repo = repo_or_404(id, store)
+def ready(
+    id,
+    store=Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
     if repo["status"] != "READY":
         raise HTTPException(409, "Repository is not ready. Check indexing status.")
     return intelligence(id)
 
 
 def public_repo(repo):
-    data = {k: v for k, v in repo.items() if k not in {"source_root", "source", "overview"}}
+    data = {
+        k: v
+        for k, v in repo.items()
+        if k not in {"source_root", "source", "overview", "owner_id"}
+    }
     for key in ("logs", "warnings"):
         if isinstance(data.get(key), str):
             data[key] = json.loads(data[key])
     return data
 
 
-def enqueue(kind, source, name, store, id=None):
+def enqueue(kind, source, name, store, owner_id, github_token="", id=None):
     id = id or str(uuid4())
     redis_connection().ping()
     job_id = str(uuid4())
@@ -66,9 +75,16 @@ def enqueue(kind, source, name, store, id=None):
         "created_at": now(),
         "updated_at": now(),
         "logs": "[]",
+        "owner_id": owner_id,
     }
     store.create_repository(data)
     try:
+        if github_token:
+            redis_connection().setex(
+                f"regora:github-token:{job_id}",
+                settings().job_timeout + 3600,
+                github_token,
+            )
         Queue("ingestion", connection=redis_connection()).enqueue(
             ingest,
             id,
@@ -81,6 +97,7 @@ def enqueue(kind, source, name, store, id=None):
             on_failure=job_failure,
         )
     except Exception:
+        redis_connection().delete(f"regora:github-token:{job_id}")
         store.update_repository(id, status="FAILED", message="Could not enqueue ingestion; check Redis and retry.")
         raise
     return public_repo(data)
@@ -94,23 +111,41 @@ def health(store: GraphStore = Depends(get_store)):
 
 
 @router.post("/repositories/github", status_code=202)
-def github(body: GitHubRequest, store: GraphStore = Depends(get_store)):
+def github(
+    body: GitHubRequest,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
     try:
         url = validate_github(body.url)
     except ValueError as e:
         raise HTTPException(422, str(e))
-    return enqueue("github", url, url.rstrip("/").split("/")[-1].removesuffix(".git"), store)
+    return enqueue(
+        "github",
+        url,
+        url.rstrip("/").split("/")[-1].removesuffix(".git"),
+        store,
+        user.id,
+        user.github_token,
+    )
 
 
 @router.post("/repositories/demo", status_code=202)
-def demo(store: GraphStore = Depends(get_store)):
+def demo(
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
     if not settings().demo_dir.is_dir():
         raise HTTPException(503, "The included demo directory is unavailable")
-    return enqueue("demo", "included-demo", "Northstar Commerce", store)
+    return enqueue("demo", "included-demo", "Northstar Commerce", store, user.id)
 
 
 @router.post("/repositories/upload", status_code=202)
-async def upload(file: UploadFile = File(...), store: GraphStore = Depends(get_store)):
+async def upload(
+    file: UploadFile = File(...),
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(422, "Choose a .zip repository archive")
     id = str(uuid4())
@@ -129,7 +164,7 @@ async def upload(file: UploadFile = File(...), store: GraphStore = Depends(get_s
 
         if not zipfile.is_zipfile(archive):
             raise HTTPException(422, "This file is not a valid ZIP archive")
-        return enqueue("zip", str(archive), Path(file.filename).stem, store, id)
+        return enqueue("zip", str(archive), Path(file.filename).stem, store, user.id, id=id)
     except Exception:
         shutil.rmtree(directory, ignore_errors=True)
         raise
@@ -138,14 +173,21 @@ async def upload(file: UploadFile = File(...), store: GraphStore = Depends(get_s
 
 
 @router.get("/repositories")
-def repositories(store: GraphStore = Depends(get_store)):
-    return [public_repo(r) for r in store.repositories()]
+def repositories(
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    return [public_repo(r) for r in store.repositories(user.id)]
 
 
 @router.get("/repositories/{id}")
 @router.get("/repositories/{id}/status")
-def repository(id: str, store: GraphStore = Depends(get_store)):
-    repo = repo_or_404(id, store)
+def repository(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
     if repo["status"] in ACTIVE and repo.get("job_id"):
         job = Queue("ingestion", connection=redis_connection()).fetch_job(repo["job_id"])
         if job and job.is_failed:
@@ -160,8 +202,12 @@ def repository(id: str, store: GraphStore = Depends(get_store)):
 
 
 @router.delete("/repositories/{id}", status_code=204)
-def delete(id: str, store: GraphStore = Depends(get_store)):
-    repo = repo_or_404(id, store)
+def delete(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
     if repo["status"] in ACTIVE:
         raise HTTPException(409, "Wait for indexing to finish before deleting this repository")
     store.delete_repository(id)
@@ -172,8 +218,12 @@ def delete(id: str, store: GraphStore = Depends(get_store)):
 
 
 @router.post("/repositories/{id}/reindex", status_code=202)
-def reindex(id: str, store: GraphStore = Depends(get_store)):
-    repo = repo_or_404(id, store)
+def reindex(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
     if repo["status"] in ACTIVE:
         raise HTTPException(409, "Indexing is already in progress")
     kind = (
@@ -193,6 +243,12 @@ def reindex(id: str, store: GraphStore = Depends(get_store)):
         id, status="QUEUED", progress=0, job_id=job_id, message="Waiting to reindex", updated_at=now()
     )
     try:
+        if kind == "github" and user.github_token:
+            redis_connection().setex(
+                f"regora:github-token:{job_id}",
+                settings().job_timeout + 3600,
+                user.github_token,
+            )
         Queue("ingestion", connection=redis_connection()).enqueue(
             ingest,
             id,
@@ -203,6 +259,7 @@ def reindex(id: str, store: GraphStore = Depends(get_store)):
             on_failure=job_failure,
         )
     except Exception:
+        redis_connection().delete(f"regora:github-token:{job_id}")
         store.update_repository(id, status="FAILED", message="Could not enqueue reindex")
         raise
     return public_repo(store.repository(id))
@@ -315,11 +372,12 @@ def pull_request_impact(
     body: PullRequestRequest,
     i=Depends(ready),
     store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
 ):
-    repo = repo_or_404(id, store)
+    repo = repo_or_404(id, store, user.id)
     try:
         validate_pull_request_repository(repo, body.url)
-        return analyze_pull_request(i, repo, fetch_pull_request(body.url))
+        return analyze_pull_request(i, repo, fetch_pull_request(body.url, user.github_token))
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 

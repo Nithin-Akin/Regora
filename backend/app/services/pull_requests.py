@@ -16,7 +16,7 @@ HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
 def parse_pull_request_url(url: str) -> tuple[str, str, int]:
     match = PR_URL.fullmatch(url.strip())
     if not match:
-        raise ValueError("Use a public GitHub pull request URL: https://github.com/owner/repository/pull/123")
+        raise ValueError("Use a GitHub pull request URL: https://github.com/owner/repository/pull/123")
     return match.group("owner"), match.group("repo"), int(match.group("number"))
 
 
@@ -45,15 +45,16 @@ def changed_line_ranges(patch: str) -> list[tuple[int, int]]:
     return ranges
 
 
-def fetch_pull_request(url: str) -> dict:
+def fetch_pull_request(url: str, token: str = "") -> dict:
     owner, repo, number = parse_pull_request_url(url)
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "Regora",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    if settings().github_token:
-        headers["Authorization"] = f"Bearer {settings().github_token}"
+    token = token or settings().github_token
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     root = f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}"
     try:
         with httpx.Client(timeout=20, follow_redirects=False, headers=headers) as client:
@@ -62,9 +63,9 @@ def fetch_pull_request(url: str) -> dict:
     except httpx.HTTPError as exc:
         raise ValueError("GitHub could not be reached. Try again in a moment.") from exc
     if response.status_code == 404:
-        raise ValueError("Pull request not found. It must belong to a public repository.")
+        raise ValueError("Pull request not found or your GitHub account cannot access it.")
     if response.status_code == 403 or files_response.status_code == 403:
-        raise ValueError("GitHub API limit reached. Set GITHUB_TOKEN in .env and restart Regora.")
+        raise ValueError("GitHub denied this request or its API limit was reached. Check repository access and retry.")
     if response.status_code != 200 or files_response.status_code != 200:
         raise ValueError("GitHub could not return this pull request.")
     return {

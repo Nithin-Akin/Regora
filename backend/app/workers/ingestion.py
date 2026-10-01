@@ -67,7 +67,12 @@ def ingest(repository_id, kind, source):
         if kind == "reindex":
             root = Path(source)
         elif kind == "github":
-            root = clone_github(source, destination)
+            from app.services.cache import redis_connection
+
+            job = get_current_job()
+            value = redis_connection().getdel(f"regora:github-token:{job.id}") if job else None
+            github_token = value.decode() if isinstance(value, bytes) else value or ""
+            root = clone_github(source, destination, github_token)
         elif kind == "zip":
             destination.mkdir(parents=True, exist_ok=True)
             root = extract_zip(Path(source), destination)
