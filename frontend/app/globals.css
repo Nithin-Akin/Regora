@@ -1546,6 +1546,107 @@ summary {
 .risk-score.compact strong {
   font-size: 32px;
 }
+.pr-review-summary {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 7px;
+  background: var(--surface-raised);
+}
+.pr-review-summary.attention {
+  border-left-color: var(--warning-text);
+}
+.pr-review-summary > span {
+  color: var(--accent-text);
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.pr-review-summary h3 {
+  margin: 8px 0 5px;
+}
+.pr-review-summary p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.pr-findings,
+.pr-checklist,
+.pr-tests {
+  display: grid;
+  gap: 8px;
+}
+.pr-finding {
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.pr-finding > span {
+  width: fit-content;
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+.pr-finding > strong {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.pr-finding > small,
+.pr-finding > code {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pr-checklist > div,
+.pr-coverage-signal {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  color: var(--success-text);
+}
+.pr-checklist > div.warning,
+.pr-coverage-signal {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+}
+.pr-checklist span,
+.pr-coverage-signal span {
+  display: grid;
+  gap: 3px;
+}
+.pr-checklist strong,
+.pr-coverage-signal strong {
+  font-size: 10px;
+}
+.pr-checklist small,
+.pr-coverage-signal small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.pr-tests code {
+  padding: 7px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: var(--surface-raised);
+  color: var(--accent-text);
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+.pr-coverage-signal {
+  margin-top: 10px;
+}
 .pr-report-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

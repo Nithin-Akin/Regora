@@ -1151,7 +1151,7 @@ export default function Workspace({
               onClick={() => setRight("pr")}
             >
               <GitPullRequest size={14} />
-              PR Impact
+              PR Review
             </button>
             {impact && (
               <button
@@ -1471,10 +1471,10 @@ export default function Workspace({
             )
           ) : right === "pr" ? (
             <div className="pr-impact-panel">
-              <div className="eyebrow">PULL REQUEST IMPACT</div>
-              <h2>Check a change before merge.</h2>
+              <div className="eyebrow">PR REVIEW AGENT</div>
+              <h2>Review a change before merge.</h2>
               <p className="hint">
-                Paste a public GitHub pull request from this indexed repository.
+                Paste a GitHub pull request from this indexed repository.
               </p>
               <form onSubmit={analyzePullRequest} className="pr-impact-form">
                 <input
@@ -1494,7 +1494,7 @@ export default function Workspace({
                   ) : (
                     <GitPullRequest size={15} />
                   )}
-                  {prLoading ? "Reading pull request" : "Analyze pull request"}
+                  {prLoading ? "Reviewing pull request" : "Run review agent"}
                 </button>
               </form>
               {prImpact && (
@@ -1536,6 +1536,95 @@ export default function Workspace({
                       </div>
                     ))}
                   </div>
+                  <section
+                    className={
+                      "pr-review-summary " +
+                      prImpact.review.status.toLowerCase()
+                    }
+                  >
+                    <span>{prImpact.review.status} · STATIC EVIDENCE</span>
+                    <h3>{prImpact.review.headline}</h3>
+                    <p>{prImpact.review.summary}</p>
+                  </section>
+                  <h3>Review findings</h3>
+                  <div className="pr-findings">
+                    {prImpact.review.findings.length ? (
+                      prImpact.review.findings.map((finding) => (
+                        <button
+                          type="button"
+                          className={"pr-finding " + finding.severity}
+                          key={finding.id}
+                          onClick={() => {
+                            const node = prImpact.graph.nodes.find(
+                              (candidate) =>
+                                candidate.id === finding.symbol_id,
+                            );
+                            if (node) openSource(node);
+                          }}
+                        >
+                          <span>{finding.severity}</span>
+                          <strong>{finding.title}</strong>
+                          <small>{finding.detail}</small>
+                          <code>
+                            {finding.file}:{finding.start_line}
+                          </code>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="hint">No mapped impact findings.</p>
+                    )}
+                  </div>
+                  <h3>Review checklist</h3>
+                  <div className="pr-checklist">
+                    {prImpact.review.checklist.map((item) => (
+                      <div className={item.status} key={item.id}>
+                        {item.status === "pass" ? (
+                          <Check size={15} />
+                        ) : (
+                          <AlertTriangle size={15} />
+                        )}
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.detail}</small>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <h3>Related tests</h3>
+                  {[
+                    ...new Set([
+                      ...prImpact.review.related_tests,
+                      ...prImpact.review.changed_test_files,
+                    ]),
+                  ].length ? (
+                    <div className="pr-tests">
+                      {[
+                        ...new Set([
+                          ...prImpact.review.related_tests,
+                          ...prImpact.review.changed_test_files,
+                        ]),
+                      ].map((path) => (
+                        <code key={path}>{path}</code>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="warning hint">
+                      No connected or changed test files were identified.
+                    </p>
+                  )}
+                  {prImpact.review.coverage_gaps.length > 0 && (
+                    <div className="pr-coverage-signal">
+                      <AlertTriangle size={16} />
+                      <span>
+                        <strong>Review test coverage</strong>
+                        <small>
+                          {prImpact.review.coverage_gaps.length} changed symbol
+                          {prImpact.review.coverage_gaps.length === 1 ? " has" : "s have"} no
+                          statically connected test file.
+                        </small>
+                      </span>
+                    </div>
+                  )}
                   <div className="pr-report-actions">
                     <button
                       type="button"

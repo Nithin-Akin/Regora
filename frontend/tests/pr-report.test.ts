@@ -53,8 +53,39 @@ const report = {
       affected_files: ["services/auth.py", "api/routes.py"],
       affected_endpoints: ["POST /checkout"],
       dependency_depth: 3,
+      related_tests: ["tests/test_auth.py"],
     },
   ],
+  review: {
+    status: "ATTENTION",
+    headline: "Review verify_token before merging",
+    summary: "Regora mapped 1 changed symbol and 1 statically connected test file.",
+    related_tests: ["tests/test_auth.py"],
+    changed_test_files: [],
+    coverage_gaps: [],
+    findings: [
+      {
+        id: "impact:verify",
+        severity: "medium",
+        title: "verify_token has medium structural impact",
+        detail: "7 dependent symbols across 2 files; 1 API route is reachable.",
+        symbol_id: "verify",
+        file: "services/auth.py",
+        start_line: 8,
+        end_line: 14,
+        related_tests: ["tests/test_auth.py"],
+      },
+    ],
+    checklist: [
+      {
+        id: "related-tests",
+        label: "Run related tests",
+        status: "pass",
+        detail: "Review 1 connected or changed test file.",
+      },
+    ],
+    grounding: "static-evidence",
+  },
   unmatched_files: ["README.md"],
   graph: { nodes: [], edges: [] },
   truncated: false,
@@ -68,11 +99,14 @@ describe("pull request impact report", () => {
     expect(markdown).toContain("**Highest risk: MEDIUM (47/100)**");
     expect(markdown).toContain("`verify_token`");
     expect(markdown).toContain("| 47 | 7 | 2 | 1 |");
+    expect(markdown).toContain("## Review agent");
+    expect(markdown).toContain("Review verify_token before merging");
+    expect(markdown).toContain("`tests/test_auth.py`");
     expect(markdown).toContain("- `README.md`");
     expect(markdown).toContain(report.caveat);
   });
 
   it("uses a stable filename containing the pull request number", () => {
-    expect(pullRequestReportFilename(report)).toBe("regora-pr-42-impact.md");
+    expect(pullRequestReportFilename(report)).toBe("regora-pr-42-review.md");
   });
 });
