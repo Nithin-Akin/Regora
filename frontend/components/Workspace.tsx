@@ -41,6 +41,7 @@ import AccountMenu from "./AccountMenu";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import {
   buildPullRequestImpactMarkdown,
+  buildPullRequestReviewComment,
   pullRequestReportFilename,
 } from "@/lib/pr-report";
 import type {
@@ -340,6 +341,18 @@ export default function Workspace({
       setReportNotice("Markdown report copied");
     } catch {
       setReportNotice("Could not copy the report");
+    }
+  }
+
+  async function copyPullRequestReviewComment() {
+    if (!prImpact) return;
+    try {
+      await navigator.clipboard.writeText(
+        buildPullRequestReviewComment(prImpact),
+      );
+      setReportNotice("GitHub review comment copied");
+    } catch {
+      setReportNotice("Could not copy the review comment");
     }
   }
 
@@ -1626,6 +1639,14 @@ export default function Workspace({
                     </div>
                   )}
                   <div className="pr-report-actions">
+                    <button
+                      type="button"
+                      className="primary-review-action"
+                      onClick={() => void copyPullRequestReviewComment()}
+                    >
+                      <Copy size={14} />
+                      Copy GitHub review
+                    </button>
                     <button
                       type="button"
                       onClick={() => void copyPullRequestReport()}

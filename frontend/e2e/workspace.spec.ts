@@ -228,6 +228,14 @@ test("runs the pull request review agent and exports its report", async ({
     fullPage: true,
   });
 
+  await page.getByRole("button", { name: "Copy GitHub review" }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "GitHub review comment copied",
+  );
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+    "## Regora review: Review verify_token before merging",
+  );
+
   await page.getByRole("button", { name: "Copy Markdown" }).click();
   await expect(page.getByRole("status")).toHaveText("Markdown report copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(

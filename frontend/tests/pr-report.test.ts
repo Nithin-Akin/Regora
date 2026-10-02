@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPullRequestImpactMarkdown,
+  buildPullRequestReviewComment,
   pullRequestReportFilename,
 } from "../lib/pr-report";
 import type { PullRequestImpact } from "../lib/types";
@@ -108,5 +109,14 @@ describe("pull request impact report", () => {
 
   it("uses a stable filename containing the pull request number", () => {
     expect(pullRequestReportFilename(report)).toBe("regora-pr-42-review.md");
+  });
+
+  it("creates a concise GitHub review comment from the same evidence", () => {
+    const comment = buildPullRequestReviewComment(report);
+    expect(comment).toContain("## Regora review: Review verify_token before merging");
+    expect(comment).toContain("**ATTENTION · MEDIUM risk · 47/100**");
+    expect(comment).toContain("✅ **Run related tests:**");
+    expect(comment).toContain("`tests/test_auth.py`");
+    expect(comment).toContain("Static evidence only");
   });
 });
