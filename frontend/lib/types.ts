@@ -111,7 +111,42 @@ export type PullRequestImpact = {
     affected_files: string[];
     affected_endpoints: string[];
     dependency_depth: number;
+    related_tests: string[];
   }[];
+  review: {
+    status: "ATTENTION" | "REVIEW";
+    headline: string;
+    summary: string;
+    related_tests: string[];
+    changed_test_files: string[];
+    coverage_gaps: {
+      symbol_id: string;
+      symbol: string;
+      file: string;
+      start_line: number;
+      end_line: number;
+      risk: string;
+      reason: string;
+    }[];
+    findings: {
+      id: string;
+      severity: string;
+      title: string;
+      detail: string;
+      symbol_id: string;
+      file: string;
+      start_line: number;
+      end_line: number;
+      related_tests: string[];
+    }[];
+    checklist: {
+      id: string;
+      label: string;
+      status: "pass" | "warning";
+      detail: string;
+    }[];
+    grounding: "static-evidence";
+  };
   unmatched_files: string[];
   graph: GraphData;
   truncated: boolean;

@@ -88,7 +88,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **Overview:** actual counts, language distribution, connection hubs, cycles, potentially unused symbols, and an automatically generated architecture explanation.
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
-- **Pull request impact:** paste a public GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, and copy or download a Markdown report for reviews.
+- **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, follow a review checklist, and copy or download a grounded Markdown review.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 - **Grounded impact answers:** every assistant impact response leads with the deterministic score, direct and transitive blast radius, affected areas, endpoints, database interactions, depth, inheritance evidence, and static-analysis limits.
 

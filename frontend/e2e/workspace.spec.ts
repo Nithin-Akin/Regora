@@ -78,7 +78,7 @@ test("real graph, search, source citations and impact", async ({
     path: screenshotPath("workspace.png"),
     fullPage: true,
   });
-  await page.getByRole("button", { name: "PR Impact" }).click();
+  await page.getByRole("button", { name: "PR Review" }).click();
   await expect(
     page.getByRole("textbox", { name: "GitHub pull request URL" }),
   ).toBeVisible();
@@ -129,7 +129,7 @@ test("real graph, search, source citations and impact", async ({
   expect(errors).toEqual([]);
 });
 
-test("exports a pull request impact report", async ({
+test("runs the pull request review agent and exports its report", async ({
   page,
   request,
   context,
@@ -174,6 +174,34 @@ test("exports a pull request impact report", async ({
           },
         ],
         impacts: [],
+        review: {
+          status: "ATTENTION",
+          headline: "Review verify_token before merging",
+          summary: "Regora mapped 1 changed symbol and 0 statically connected test files.",
+          related_tests: [],
+          changed_test_files: [],
+          coverage_gaps: [
+            {
+              symbol_id: "verify",
+              symbol: "verify_token",
+              file: "services/auth.py",
+              start_line: 8,
+              end_line: 14,
+              risk: "MEDIUM",
+              reason: "No statically connected test file was found in the indexed graph.",
+            },
+          ],
+          findings: [],
+          checklist: [
+            {
+              id: "coverage-signals",
+              label: "Review test coverage signals",
+              status: "warning",
+              detail: "1 changed symbol has no statically connected test file.",
+            },
+          ],
+          grounding: "static-evidence",
+        },
         unmatched_files: [],
         graph: { nodes: [], edges: [] },
         truncated: false,
@@ -183,12 +211,22 @@ test("exports a pull request impact report", async ({
   });
 
   await page.goto("/repository/" + repo.id);
-  await page.getByRole("button", { name: "PR Impact" }).click();
+  await page.getByRole("button", { name: "PR Review" }).click();
   await page
     .getByRole("textbox", { name: "GitHub pull request URL" })
     .fill("https://github.com/acme/shop/pull/42");
-  await page.getByRole("button", { name: "Analyze pull request" }).click();
+  await page.getByRole("button", { name: "Run review agent" }).click();
   await expect(page.locator(".risk-score.compact")).toContainText("47");
+  await expect(page.locator(".pr-review-summary")).toContainText(
+    "Review verify_token before merging",
+  );
+  await expect(page.locator(".pr-coverage-signal")).toContainText(
+    "1 changed symbol has no statically connected test file",
+  );
+  await page.screenshot({
+    path: screenshotPath("pr-review.png"),
+    fullPage: true,
+  });
 
   await page.getByRole("button", { name: "Copy Markdown" }).click();
   await expect(page.getByRole("status")).toHaveText("Markdown report copied");
@@ -199,5 +237,5 @@ test("exports a pull request impact report", async ({
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download report" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("regora-pr-42-impact.md");
+  expect(download.suggestedFilename()).toBe("regora-pr-42-review.md");
 });
