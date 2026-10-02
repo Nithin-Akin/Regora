@@ -1,5 +1,6 @@
 import pytest
 
+from app.graph.intelligence import Intelligence
 from app.services.pull_requests import (
     analyze_pull_request,
     changed_line_ranges,
@@ -50,6 +51,39 @@ def test_pull_request_maps_changed_lines_to_graph_impact(demo_intelligence):
     assert result["summary"]["symbols_changed"] >= 1
     assert any(item["node"]["name"] == "AuthService" for item in result["impacts"])
     assert result["graph"]["nodes"]
+    assert result["review"]["grounding"] == "static-evidence"
+    assert result["review"]["coverage_gaps"]
+    assert result["review"]["status"] == "ATTENTION"
+
+
+def test_pull_request_review_finds_connected_tests(parse):
+    graph = parse(
+        {
+            "service.py": "def charge():\n    return True\n",
+            "tests/test_service.py": "from service import charge\n\ndef test_charge():\n    assert charge()\n",
+        }
+    )
+    result = analyze_pull_request(
+        Intelligence(graph),
+        {"kind": "github", "source": "https://github.com/acme/shop"},
+        {
+            **payload(),
+            "files": [
+                {
+                    "filename": "service.py",
+                    "status": "modified",
+                    "additions": 1,
+                    "deletions": 0,
+                    "patch": "@@ -1,2 +1,2 @@",
+                }
+            ],
+        },
+    )
+    charge = next(item for item in result["impacts"] if item["node"]["name"] == "charge")
+    assert charge["related_tests"] == ["tests/test_service.py"]
+    assert result["review"]["related_tests"] == ["tests/test_service.py"]
+    assert not result["review"]["coverage_gaps"]
+    assert result["review"]["checklist"][1]["status"] == "pass"
 
 
 def test_pull_request_must_match_indexed_repository(demo_intelligence):

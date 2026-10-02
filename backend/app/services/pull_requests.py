@@ -4,6 +4,7 @@ import re
 
 import httpx
 
+from app.agents.pull_request_review import PullRequestReviewAgent
 from app.config import settings
 
 
@@ -119,6 +120,7 @@ def analyze_pull_request(intelligence, repository: dict, payload: dict) -> dict:
             }
         )
 
+    reviewer = PullRequestReviewAgent(intelligence)
     impacts = []
     graph_ids = list(changed_ids)
     affected_files = set()
@@ -137,12 +139,13 @@ def analyze_pull_request(intelligence, repository: dict, payload: dict) -> dict:
                 "affected_files": impact["affected_files"],
                 "affected_endpoints": impact["affected_endpoints"],
                 "dependency_depth": impact["dependency_depth"],
+                "related_tests": reviewer.related_tests(impact),
             }
         )
     impacts.sort(key=lambda item: (item["score"], item["blast_radius"]), reverse=True)
     highest_score = impacts[0]["score"] if impacts else 0
     pr = payload["pull_request"]
-    return {
+    result = {
         "pull_request": {
             "number": pr["number"],
             "title": pr["title"],
@@ -166,3 +169,5 @@ def analyze_pull_request(intelligence, repository: dict, payload: dict) -> dict:
         "truncated": payload["truncated"] or len(changed_ids) > 50,
         "caveat": "Potential impact is calculated from the currently indexed revision and static dependencies. Added files and dynamic behavior may require reindexing the pull request branch.",
     }
+    result["review"] = reviewer.review(result)
+    return result
