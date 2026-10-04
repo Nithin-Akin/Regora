@@ -13,14 +13,22 @@ from rq import Queue
 from app.agents.reasoning import RepoAgent
 from app.config import settings
 from app.graph.store import GraphStore, get_store
-from app.models.schema import AskRequest, GitHubRequest, PullRequestRequest, TraceRequest
+from app.models.schema import (
+    AskRequest,
+    GitHubRequest,
+    PullRequestRequest,
+    PullRequestReviewPublishRequest,
+    TraceRequest,
+)
 from app.retrieval.hybrid import HybridRetrieval
 from app.security.repositories import validate_github
 from app.security.auth import CurrentUser, current_user
 from app.services.cache import intelligence, redis_connection, snapshot
 from app.services.pull_requests import (
+    GitHubPublishError,
     analyze_pull_request,
     fetch_pull_request,
+    publish_pull_request_comment,
     validate_pull_request_repository,
 )
 from app.workers.ingestion import ingest, job_failure, now
@@ -378,6 +386,23 @@ def pull_request_impact(
     try:
         validate_pull_request_repository(repo, body.url)
         return analyze_pull_request(i, repo, fetch_pull_request(body.url, user.github_token))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post("/repositories/{id}/pull-request-review/comment", status_code=201)
+def publish_pull_request_review(
+    id: str,
+    body: PullRequestReviewPublishRequest,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    try:
+        validate_pull_request_repository(repo, body.url)
+        return publish_pull_request_comment(body.url, body.comment, user.github_token)
+    except GitHubPublishError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 

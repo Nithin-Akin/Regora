@@ -1,10 +1,13 @@
 import pytest
 
+import app.services.pull_requests as pull_requests
+
 from app.graph.intelligence import Intelligence
 from app.services.pull_requests import (
     analyze_pull_request,
     changed_line_ranges,
     parse_pull_request_url,
+    publish_pull_request_comment,
     validate_pull_request_repository,
 )
 
@@ -98,3 +101,52 @@ def test_pull_request_must_match_indexed_repository(demo_intelligence):
             {"kind": "github", "source": "https://github.com/other/project"},
             "https://github.com/acme/shop/pull/12",
         )
+
+
+def test_publish_pull_request_comment_uses_bounded_github_contract(monkeypatch):
+    captured = {}
+
+    class Response:
+        status_code = 201
+
+        @staticmethod
+        def json():
+            return {
+                "id": 91,
+                "html_url": "https://github.com/acme/shop/pull/12#issuecomment-91",
+                "created_at": "2026-10-04T10:00:00Z",
+            }
+
+    class Client:
+        def __init__(self, **kwargs):
+            captured["headers"] = kwargs["headers"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        @staticmethod
+        def post(url, json):
+            captured["url"] = url
+            captured["json"] = json
+            return Response()
+
+    monkeypatch.setattr(pull_requests.httpx, "Client", Client)
+    result = publish_pull_request_comment(
+        "https://github.com/acme/shop/pull/12",
+        "## Regora review\nGrounded evidence.",
+        "secret-token",
+    )
+    assert captured["url"] == "https://api.github.com/repos/acme/shop/issues/12/comments"
+    assert captured["json"] == {"body": "## Regora review\nGrounded evidence."}
+    assert captured["headers"]["Authorization"] == "Bearer secret-token"
+    assert result["id"] == 91
+    assert result["action"] == "created"
+
+
+def test_publish_pull_request_comment_requires_github_credentials():
+    with pytest.raises(pull_requests.GitHubPublishError) as exc:
+        publish_pull_request_comment("https://github.com/acme/shop/pull/12", "Review", "")
+    assert exc.value.status_code == 401

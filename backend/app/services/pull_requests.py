@@ -1,4 +1,4 @@
-"""Read-only GitHub pull request inspection mapped onto indexed graph evidence."""
+"""GitHub pull-request analysis and explicitly requested review publishing."""
 
 import re
 
@@ -12,6 +12,12 @@ PR_URL = re.compile(
     r"https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[1-9][0-9]*)/?"
 )
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
+
+
+class GitHubPublishError(ValueError):
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(detail)
+        self.status_code = status_code
 
 
 def parse_pull_request_url(url: str) -> tuple[str, str, int]:
@@ -75,6 +81,43 @@ def fetch_pull_request(url: str, token: str = "") -> dict:
         "pull_request": response.json(),
         "files": files_response.json(),
         "truncated": 'rel="next"' in files_response.headers.get("link", ""),
+    }
+
+
+def publish_pull_request_comment(url: str, comment: str, token: str) -> dict:
+    """Publish a top-level pull-request comment through GitHub's issue comments API."""
+    if not token:
+        raise GitHubPublishError(401, "Connect GitHub or configure GITHUB_TOKEN before publishing.")
+    owner, repo, number = parse_pull_request_url(url)
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "Regora",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    endpoint = f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/comments"
+    try:
+        with httpx.Client(timeout=20, follow_redirects=False, headers=headers) as client:
+            response = client.post(endpoint, json={"body": comment})
+    except httpx.HTTPError as exc:
+        raise GitHubPublishError(502, "GitHub could not be reached. Try publishing again.") from exc
+    if response.status_code in {401, 403}:
+        raise GitHubPublishError(
+            403,
+            "GitHub did not allow this comment. Check repository access and token permissions.",
+        )
+    if response.status_code == 404:
+        raise GitHubPublishError(404, "Pull request not found or your GitHub account cannot access it.")
+    if response.status_code == 422:
+        raise GitHubPublishError(422, "GitHub rejected the review comment.")
+    if response.status_code != 201:
+        raise GitHubPublishError(502, "GitHub could not publish the review comment.")
+    payload = response.json()
+    return {
+        "id": payload["id"],
+        "url": payload["html_url"],
+        "created_at": payload.get("created_at", ""),
+        "action": "created",
     }
 
 
