@@ -128,6 +128,40 @@ def test_pull_request_impact_endpoint(client, monkeypatch):
     assert response.json()["summary"]["symbols_changed"] >= 1
 
 
+def test_publish_pull_request_review_endpoint(client, monkeypatch):
+    app.dependency_overrides[current_user] = lambda: CurrentUser("local", "github-token")
+    monkeypatch.setattr(
+        routes,
+        "publish_pull_request_comment",
+        lambda url, comment, token: {
+            "id": 91,
+            "url": "https://github.com/acme/shop/pull/12#issuecomment-91",
+            "created_at": "2026-10-04T10:00:00Z",
+            "action": "created",
+        },
+    )
+    response = client.post(
+        "/api/repositories/r/pull-request-review/comment",
+        json={
+            "url": "https://github.com/acme/shop/pull/12",
+            "comment": "## Regora review\nGrounded evidence.",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["action"] == "created"
+
+
+def test_publish_pull_request_review_rejects_other_repository(client):
+    response = client.post(
+        "/api/repositories/r/pull-request-review/comment",
+        json={
+            "url": "https://github.com/other/project/pull/12",
+            "comment": "Review",
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_assistant_stream_reports_progress_and_validated_result(client, monkeypatch):
     class StreamingAgent:
         def __init__(self, *args):
