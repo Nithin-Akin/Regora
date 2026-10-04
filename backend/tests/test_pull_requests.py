@@ -128,6 +128,20 @@ def test_publish_pull_request_comment_uses_bounded_github_contract(monkeypatch):
             pass
 
         @staticmethod
+        def get(url, params):
+            captured["list_url"] = url
+            captured["params"] = params
+
+            class CommentsResponse:
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return []
+
+            return CommentsResponse()
+
+        @staticmethod
         def post(url, json):
             captured["url"] = url
             captured["json"] = json
@@ -140,13 +154,97 @@ def test_publish_pull_request_comment_uses_bounded_github_contract(monkeypatch):
         "secret-token",
     )
     assert captured["url"] == "https://api.github.com/repos/acme/shop/issues/12/comments"
-    assert captured["json"] == {"body": "## Regora review\nGrounded evidence."}
+    assert captured["json"] == {
+        "body": "## Regora review\nGrounded evidence.\n\n<!-- regora-review:local -->"
+    }
     assert captured["headers"]["Authorization"] == "Bearer secret-token"
     assert result["id"] == 91
     assert result["action"] == "created"
+
+
+def test_publish_pull_request_comment_updates_actors_existing_review(monkeypatch):
+    captured = {}
+    marker = "<!-- regora-review:github:42 -->"
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "id": 91,
+                "html_url": "https://github.com/acme/shop/pull/12#issuecomment-91",
+                "created_at": "2026-10-04T10:00:00Z",
+            }
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        @staticmethod
+        def get(url, params):
+            return type(
+                "CommentsResponse",
+                (),
+                {"status_code": 200, "json": staticmethod(lambda: [{"id": 91, "body": f"Old\n\n{marker}"}])},
+            )()
+
+        @staticmethod
+        def patch(url, json):
+            captured["url"] = url
+            captured["json"] = json
+            return Response()
+
+        @staticmethod
+        def post(url, json):
+            raise AssertionError("An existing Regora comment must be updated")
+
+    monkeypatch.setattr(pull_requests.httpx, "Client", Client)
+    result = publish_pull_request_comment(
+        "https://github.com/acme/shop/pull/12",
+        f"Updated review\n\n{marker}",
+        "secret-token",
+        "github:42",
+    )
+    assert captured["url"].endswith("/issues/comments/91")
+    assert captured["json"] == {"body": f"Updated review\n\n{marker}"}
+    assert result["action"] == "updated"
 
 
 def test_publish_pull_request_comment_requires_github_credentials():
     with pytest.raises(pull_requests.GitHubPublishError) as exc:
         publish_pull_request_comment("https://github.com/acme/shop/pull/12", "Review", "")
     assert exc.value.status_code == 401
+
+
+def test_publish_pull_request_comment_stops_when_comment_lookup_is_forbidden(monkeypatch):
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        @staticmethod
+        def get(url, params):
+            return type("Forbidden", (), {"status_code": 403})()
+
+        @staticmethod
+        def post(url, json):
+            raise AssertionError("Regora must not write after a failed lookup")
+
+    monkeypatch.setattr(pull_requests.httpx, "Client", Client)
+    with pytest.raises(pull_requests.GitHubPublishError) as exc:
+        publish_pull_request_comment(
+            "https://github.com/acme/shop/pull/12", "Review", "secret-token"
+        )
+    assert exc.value.status_code == 403

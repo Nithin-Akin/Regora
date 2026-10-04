@@ -387,7 +387,11 @@ export default function Workspace({
       );
       setReviewPublication(publication);
       setReviewPreviewOpen(false);
-      setReportNotice("Review published to GitHub");
+      setReportNotice(
+        publication.action === "updated"
+          ? "GitHub review updated"
+          : "Review published to GitHub",
+      );
     } catch (e) {
       fail(e);
     } finally {

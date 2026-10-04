@@ -12,6 +12,7 @@ PR_URL = re.compile(
     r"https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/pull/(?P<number>[1-9][0-9]*)/?"
 )
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
+REVIEW_MARKER = re.compile(r"\n?<!-- regora-review:[^>]*-->")
 
 
 class GitHubPublishError(ValueError):
@@ -84,8 +85,8 @@ def fetch_pull_request(url: str, token: str = "") -> dict:
     }
 
 
-def publish_pull_request_comment(url: str, comment: str, token: str) -> dict:
-    """Publish a top-level pull-request comment through GitHub's issue comments API."""
+def publish_pull_request_comment(url: str, comment: str, token: str, actor_id: str = "local") -> dict:
+    """Create or update this actor's top-level Regora pull-request comment."""
     if not token:
         raise GitHubPublishError(401, "Connect GitHub or configure GITHUB_TOKEN before publishing.")
     owner, repo, number = parse_pull_request_url(url)
@@ -96,9 +97,46 @@ def publish_pull_request_comment(url: str, comment: str, token: str) -> dict:
         "X-GitHub-Api-Version": "2022-11-28",
     }
     endpoint = f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/comments"
+    marker = f"<!-- regora-review:{actor_id} -->"
+    body = REVIEW_MARKER.sub("", comment).rstrip() + f"\n\n{marker}"
     try:
         with httpx.Client(timeout=20, follow_redirects=False, headers=headers) as client:
-            response = client.post(endpoint, json={"body": comment})
+            existing = None
+            for page in range(1, 6):
+                comments_response = client.get(endpoint, params={"per_page": 100, "page": page})
+                if comments_response.status_code in {401, 403}:
+                    raise GitHubPublishError(
+                        403,
+                        "GitHub did not allow this comment. Check repository access and token permissions.",
+                    )
+                if comments_response.status_code == 404:
+                    raise GitHubPublishError(
+                        404, "Pull request not found or your GitHub account cannot access it."
+                    )
+                if comments_response.status_code != 200:
+                    raise GitHubPublishError(502, "GitHub could not inspect existing review comments.")
+                comments = comments_response.json()
+                existing = next(
+                    (
+                        item
+                        for item in comments
+                        if isinstance(item.get("body"), str) and item["body"].rstrip().endswith(marker)
+                    ),
+                    None,
+                )
+                if existing or len(comments) < 100:
+                    break
+            if existing:
+                response = client.patch(
+                    f"https://api.github.com/repos/{owner}/{repo}/issues/comments/{existing['id']}",
+                    json={"body": body},
+                )
+                expected_status = 200
+                action = "updated"
+            else:
+                response = client.post(endpoint, json={"body": body})
+                expected_status = 201
+                action = "created"
     except httpx.HTTPError as exc:
         raise GitHubPublishError(502, "GitHub could not be reached. Try publishing again.") from exc
     if response.status_code in {401, 403}:
@@ -110,14 +148,14 @@ def publish_pull_request_comment(url: str, comment: str, token: str) -> dict:
         raise GitHubPublishError(404, "Pull request not found or your GitHub account cannot access it.")
     if response.status_code == 422:
         raise GitHubPublishError(422, "GitHub rejected the review comment.")
-    if response.status_code != 201:
+    if response.status_code != expected_status:
         raise GitHubPublishError(502, "GitHub could not publish the review comment.")
     payload = response.json()
     return {
         "id": payload["id"],
         "url": payload["html_url"],
         "created_at": payload.get("created_at", ""),
-        "action": "created",
+        "action": action,
     }
 
 
