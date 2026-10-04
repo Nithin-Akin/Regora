@@ -400,7 +400,7 @@ def publish_pull_request_review(
     repo = repo_or_404(id, store, user.id)
     try:
         validate_pull_request_repository(repo, body.url)
-        return publish_pull_request_comment(body.url, body.comment, user.github_token)
+        return publish_pull_request_comment(body.url, body.comment, user.github_token, user.id)
     except GitHubPublishError as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     except ValueError as exc:

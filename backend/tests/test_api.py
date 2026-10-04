@@ -133,7 +133,7 @@ def test_publish_pull_request_review_endpoint(client, monkeypatch):
     monkeypatch.setattr(
         routes,
         "publish_pull_request_comment",
-        lambda url, comment, token: {
+        lambda url, comment, token, actor_id: {
             "id": 91,
             "url": "https://github.com/acme/shop/pull/12#issuecomment-91",
             "created_at": "2026-10-04T10:00:00Z",

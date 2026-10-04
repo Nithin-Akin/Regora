@@ -224,7 +224,7 @@ test("runs the pull request review agent and exports its report", async ({
           id: 91,
           url: "https://github.com/acme/shop/pull/42#issuecomment-91",
           created_at: "2026-10-04T10:00:00Z",
-          action: "created",
+          action: "updated",
         }),
       });
     },
@@ -260,7 +260,7 @@ test("runs the pull request review agent and exports its report", async ({
     fullPage: true,
   });
   await page.getByRole("button", { name: "Publish to GitHub" }).click();
-  await expect(page.getByRole("status")).toHaveText("Review published to GitHub");
+  await expect(page.getByRole("status")).toHaveText("GitHub review updated");
   await expect(page.getByRole("link", { name: "View GitHub comment" })).toHaveAttribute(
     "href",
     "https://github.com/acme/shop/pull/42#issuecomment-91",
