@@ -209,6 +209,26 @@ test("runs the pull request review agent and exports its report", async ({
       }),
     });
   });
+  await page.route(
+    "**/api/repositories/*/pull-request-review/comment",
+    async (route) => {
+      const body = route.request().postDataJSON();
+      expect(body.url).toBe("https://github.com/acme/shop/pull/42");
+      expect(body.comment).toContain(
+        "## Regora review: Review verify_token before merging",
+      );
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: 91,
+          url: "https://github.com/acme/shop/pull/42#issuecomment-91",
+          created_at: "2026-10-04T10:00:00Z",
+          action: "created",
+        }),
+      });
+    },
+  );
 
   await page.goto("/repository/" + repo.id);
   await page.getByRole("button", { name: "PR Review" }).click();
@@ -227,6 +247,24 @@ test("runs the pull request review agent and exports its report", async ({
     path: screenshotPath("pr-review.png"),
     fullPage: true,
   });
+
+  await page.getByRole("button", { name: "Preview GitHub publish" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Review the comment before posting." }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "GitHub review comment" })).toContainText(
+    "## Regora review: Review verify_token before merging",
+  );
+  await page.screenshot({
+    path: screenshotPath("pr-review-publish.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Publish to GitHub" }).click();
+  await expect(page.getByRole("status")).toHaveText("Review published to GitHub");
+  await expect(page.getByRole("link", { name: "View GitHub comment" })).toHaveAttribute(
+    "href",
+    "https://github.com/acme/shop/pull/42#issuecomment-91",
+  );
 
   await page.getByRole("button", { name: "Copy GitHub review" }).click();
   await expect(page.getByRole("status")).toHaveText(

@@ -1684,6 +1684,96 @@ summary {
   color: var(--success-text);
   font-size: 10px;
 }
+.pr-publication-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 8px;
+  color: var(--success-text);
+  font-size: 10px;
+}
+.review-publish-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--overlay);
+  backdrop-filter: blur(5px);
+}
+.review-publish-modal {
+  width: min(720px, 100%);
+  max-height: min(760px, 92vh);
+  display: grid;
+  grid-template-rows: auto auto minmax(260px, 1fr) auto;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 24px 80px var(--shadow-deep);
+}
+.review-publish-modal > header,
+.review-publish-modal > footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.review-publish-modal > header {
+  justify-content: space-between;
+}
+.review-publish-modal h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+}
+.review-publish-modal > header > button {
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface-raised);
+}
+.review-publish-modal > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.review-publish-modal textarea {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  outline: none;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  font: 11px/1.6 monospace;
+}
+.review-publish-modal textarea:focus {
+  border-color: var(--accent);
+}
+.review-publish-modal > footer {
+  justify-content: flex-end;
+}
+.review-publish-modal > footer span {
+  margin-right: auto;
+  color: var(--muted-dim);
+  font-size: 9px;
+}
+.review-publish-modal > footer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+}
 .pr-impact-panel h3 {
   font-size: 12px;
   margin: 23px 0 12px;

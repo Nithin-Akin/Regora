@@ -152,6 +152,12 @@ export type PullRequestImpact = {
   truncated: boolean;
   caveat: string;
 };
+export type PullRequestReviewPublication = {
+  id: number;
+  url: string;
+  created_at: string;
+  action: "created" | "updated";
+};
 export type Citation = {
   symbol_id: string;
   file: string;
