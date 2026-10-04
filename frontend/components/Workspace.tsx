@@ -51,6 +51,7 @@ import type {
   Overview,
   Impact,
   PullRequestImpact,
+  PullRequestReviewPublication,
   Citation,
   Answer,
   Message,
@@ -132,6 +133,11 @@ export default function Workspace({
   const [prImpact, setPrImpact] = useState<PullRequestImpact | null>(null);
   const [prLoading, setPrLoading] = useState(false);
   const [reportNotice, setReportNotice] = useState("");
+  const [reviewDraft, setReviewDraft] = useState("");
+  const [reviewPreviewOpen, setReviewPreviewOpen] = useState(false);
+  const [reviewPublishing, setReviewPublishing] = useState(false);
+  const [reviewPublication, setReviewPublication] =
+    useState<PullRequestReviewPublication | null>(null);
   const [working, setWorking] = useState("");
   const [pathStart, setPathStart] = useState<Node | null>(null);
   const [pathNotice, setPathNotice] = useState("");
@@ -317,6 +323,7 @@ export default function Workspace({
         { method: "POST", body: JSON.stringify({ url: prUrl.trim() }) },
       );
       setPrImpact(result);
+      setReviewPublication(null);
       setRight("pr");
       setRightOpen(true);
       if (result.graph.nodes.length) {
@@ -353,6 +360,38 @@ export default function Workspace({
       setReportNotice("GitHub review comment copied");
     } catch {
       setReportNotice("Could not copy the review comment");
+    }
+  }
+
+  function previewPullRequestReview() {
+    if (!prImpact) return;
+    setReviewDraft(buildPullRequestReviewComment(prImpact));
+    setReviewPreviewOpen(true);
+    setReportNotice("");
+  }
+
+  async function publishPullRequestReview() {
+    if (!prImpact || !reviewDraft.trim()) return;
+    setReviewPublishing(true);
+    setError("");
+    try {
+      const publication = await api<PullRequestReviewPublication>(
+        `${base}/pull-request-review/comment`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            url: prImpact.pull_request.url,
+            comment: reviewDraft.trim(),
+          }),
+        },
+      );
+      setReviewPublication(publication);
+      setReviewPreviewOpen(false);
+      setReportNotice("Review published to GitHub");
+    } catch (e) {
+      fail(e);
+    } finally {
+      setReviewPublishing(false);
     }
   }
 
@@ -1642,6 +1681,13 @@ export default function Workspace({
                     <button
                       type="button"
                       className="primary-review-action"
+                      onClick={previewPullRequestReview}
+                    >
+                      <Send size={14} />
+                      Preview GitHub publish
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void copyPullRequestReviewComment()}
                     >
                       <Copy size={14} />
@@ -1664,6 +1710,18 @@ export default function Workspace({
                       <Check size={13} />
                       {reportNotice}
                     </div>
+                  )}
+                  {reviewPublication && (
+                    <a
+                      className="pr-publication-link"
+                      href={reviewPublication.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Check size={13} />
+                      View GitHub comment
+                      <ArrowUpRight size={12} />
+                    </a>
                   )}
                   <h3>Highest impact symbols</h3>
                   {prImpact.impacts.length ? (
@@ -1797,6 +1855,64 @@ export default function Workspace({
           citation={citation}
           onClose={() => setCitation(null)}
         />
+      )}
+      {reviewPreviewOpen && prImpact && (
+        <div className="review-publish-backdrop">
+          <section
+            className="review-publish-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="review-publish-title"
+          >
+            <header>
+              <div>
+                <span className="eyebrow">GITHUB PUBLISH PREVIEW</span>
+                <h2 id="review-publish-title">Review the comment before posting.</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close publish preview"
+                onClick={() => setReviewPreviewOpen(false)}
+                disabled={reviewPublishing}
+              >
+                <X size={17} />
+              </button>
+            </header>
+            <p>
+              This comment will be posted to PR #{prImpact.pull_request.number}
+              in GitHub. You can edit it before publishing.
+            </p>
+            <textarea
+              aria-label="GitHub review comment"
+              value={reviewDraft}
+              onChange={(event) => setReviewDraft(event.target.value)}
+              maxLength={60000}
+            />
+            <footer>
+              <span>{reviewDraft.length.toLocaleString()} / 60,000</span>
+              <button
+                type="button"
+                onClick={() => setReviewPreviewOpen(false)}
+                disabled={reviewPublishing}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => void publishPullRequestReview()}
+                disabled={reviewPublishing || !reviewDraft.trim()}
+              >
+                {reviewPublishing ? (
+                  <LoaderCircle className="spin" size={15} />
+                ) : (
+                  <Send size={15} />
+                )}
+                {reviewPublishing ? "Publishing" : "Publish to GitHub"}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
     </div>
   );
