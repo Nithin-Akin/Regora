@@ -51,6 +51,10 @@ test("landing page imports and mobile layout", async ({ page }) => {
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBeTruthy();
+  await page.screenshot({
+    path: screenshotPath("landing-mobile.png"),
+    fullPage: true,
+  });
 });
 
 test("real graph, search, source citations and impact", async ({

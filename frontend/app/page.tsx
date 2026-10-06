@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   Terminal,
   FileArchive,
+  GitPullRequest,
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -83,6 +84,20 @@ export default function Home() {
             lets you ask questions about architecture, dependencies and change
             impact.
           </p>
+          <div className="product-proof" role="list" aria-label="Product capabilities">
+            <span role="listitem">
+              <ShieldCheck size={15} />
+              Static analysis
+            </span>
+            <span role="listitem">
+              <Workflow size={15} />
+              Graph grounded
+            </span>
+            <span role="listitem">
+              <GitPullRequest size={15} />
+              GitHub PR reviews
+            </span>
+          </div>
         </div>
         <section className="ingest-card">
           <div className="card-heading">
