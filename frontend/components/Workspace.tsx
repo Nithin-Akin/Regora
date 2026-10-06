@@ -1215,6 +1215,7 @@ export default function Workspace({
                 onClick={() => setRight("impact")}
               >
                 <Activity size={14} />
+                Impact
               </button>
             )}
             <button
