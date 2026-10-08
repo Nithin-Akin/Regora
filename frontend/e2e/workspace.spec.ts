@@ -57,6 +57,60 @@ test("landing page imports and mobile layout", async ({ page }) => {
   });
 });
 
+test("repository dashboard summarizes and filters workspaces", async ({ page }) => {
+  await page.route("**/api/repositories", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "alpha",
+          name: "Alpha API",
+          status: "READY",
+          progress: 100,
+          message: "Repository intelligence is ready",
+          created_at: "2026-10-08T08:00:00Z",
+          job_id: "job-alpha",
+        },
+        {
+          id: "beta",
+          name: "Beta Web",
+          status: "PARSING",
+          progress: 46,
+          message: "Extracting symbols and relationships",
+          created_at: "2026-10-07T08:00:00Z",
+          job_id: "job-beta",
+        },
+        {
+          id: "legacy",
+          name: "Legacy Worker",
+          status: "FAILED",
+          progress: 28,
+          message: "Analysis needs attention",
+          created_at: "2026-10-06T08:00:00Z",
+          job_id: "job-legacy",
+        },
+      ]),
+    });
+  });
+  await page.goto("/repositories");
+  await expect(page.getByRole("heading", { name: "Repositories" })).toBeVisible();
+  await expect(page.getByLabel("Repository summary")).toContainText("Ready");
+  await expect(page.getByText("Alpha API")).toBeVisible();
+  await page.screenshot({
+    path: screenshotPath("repositories.png"),
+    fullPage: true,
+  });
+  await page.getByRole("textbox", { name: "Search repositories" }).fill("Beta");
+  await expect(page.getByText("Beta Web")).toBeVisible();
+  await expect(page.getByText("Alpha API")).not.toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+});
+
 test("real graph, search, source citations and impact", async ({
   page,
   request,
