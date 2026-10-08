@@ -591,6 +591,8 @@ export default function Workspace({
       start_line: node.start_line,
       end_line: node.end_line,
     });
+  const currentStage = repo ? stages.indexOf(repo.status) : -1;
+  const completedStages = Math.max(0, currentStage);
   if (!repo || repo.status !== "READY")
     return (
       <>
@@ -605,77 +607,133 @@ export default function Workspace({
           </div>
         </header>
         <main className="progress-page">
-          <div className="eyebrow">REPOSITORY INGESTION</div>
-          <h1>
-            {repo?.status === "FAILED"
-              ? "Analysis needs attention"
-              : repo
-                ? "Mapping " + repo.name
-                : "Connecting to your workspace"}
-          </h1>
-          <p className="muted">
-            {repo?.message || "Waiting for the repository service…"}
-          </p>
+          <section className="progress-hero">
+            <div className="progress-copy">
+              <div className="eyebrow">REPOSITORY INGESTION</div>
+              <h1>
+                {repo?.status === "FAILED"
+                  ? "Analysis needs attention"
+                  : repo
+                    ? "Mapping " + repo.name
+                    : "Connecting to your workspace"}
+              </h1>
+              <p className="muted">
+                {repo?.message || "Waiting for the repository service…"}
+              </p>
+            </div>
+            <div
+              className={`progress-score ${repo?.status === "FAILED" ? "failed" : ""}`}
+              aria-label={repo ? `${repo.progress}% complete` : "Connecting"}
+            >
+              <strong>{repo ? repo.progress : 0}</strong>
+              <span>%</span>
+              <small>{repo?.status === "FAILED" ? "Stopped" : "Complete"}</small>
+            </div>
+          </section>
           {error && <div className="error">{error}</div>}
           {repo && (
-            <>
-              <div className="progress-track">
-                <i style={{ width: repo.progress + "%" }} />
-              </div>
-              <div className="progress-label">
-                <span>{repo.status}</span>
-                <strong>{repo.progress}%</strong>
-              </div>
-              <ol className="ingestion-stages">
-                {stages.map((s, index) => {
-                  const current = stages.indexOf(repo.status);
-                  return (
+            <div className="progress-layout">
+              <section className="progress-card" aria-label="Analysis progress">
+                <div className="progress-card-heading">
+                  <div>
+                    <span className="progress-icon">
+                      <Activity size={17} />
+                    </span>
+                    <div>
+                      <strong>Building repository intelligence</strong>
+                      <span>{completedStages} of {stages.length - 1} stages complete</span>
+                    </div>
+                  </div>
+                  <span className={`status ${repo.status.toLowerCase()}`}>
+                    {repo.status.replaceAll("_", " ")}
+                  </span>
+                </div>
+                <div className="progress-track">
+                  <i style={{ width: repo.progress + "%" }} />
+                </div>
+                <ol className="ingestion-stages">
+                  {stages.map((stage, index) => (
                     <li
-                      key={s}
+                      key={stage}
                       className={
-                        index < current
+                        index < currentStage
                           ? "done"
-                          : index === current
+                          : index === currentStage
                             ? "current"
                             : ""
                       }
                     >
-                      {index < current ? (
-                        <Check size={16} />
-                      ) : index === current ? (
-                        <LoaderCircle className="spin" size={16} />
-                      ) : (
-                        <span className="stage-number">{index + 1}</span>
-                      )}
-                      {labels[index]}
+                      <span className="stage-marker">
+                        {index < currentStage ? (
+                          <Check size={15} />
+                        ) : index === currentStage ? (
+                          <LoaderCircle className="spin" size={15} />
+                        ) : (
+                          index + 1
+                        )}
+                      </span>
+                      <span>
+                        <strong>{labels[index]}</strong>
+                        <small>
+                          {index < currentStage
+                            ? "Completed"
+                            : index === currentStage
+                              ? "In progress"
+                              : "Waiting"}
+                        </small>
+                      </span>
                     </li>
-                  );
-                })}
-              </ol>
-              {repo.status === "FAILED" && (
-                <button
-                  className="button primary"
-                  onClick={() => void retry()}
-                  disabled={!!working}
-                >
-                  <RefreshCw size={16} />
-                  Retry analysis
-                </button>
-              )}
-              <details className="job-logs">
-                <summary>Processing log</summary>
-                {repo.logs?.map((l, index) => (
-                  <p key={index}>
-                    <span>{l.elapsed_seconds}s</span>
-                    {l.message}
-                  </p>
-                ))}
-              </details>
-              <p className="hint">
-                This job runs in the background. You can leave this page and
-                return later.
-              </p>
-            </>
+                  ))}
+                </ol>
+              </section>
+              <aside className="progress-sidebar">
+                <div className={`progress-note ${repo.status === "FAILED" ? "failed" : ""}`}>
+                  {repo.status === "FAILED" ? (
+                    <AlertTriangle size={20} />
+                  ) : (
+                    <ShieldCheck size={20} />
+                  )}
+                  <div>
+                    <strong>
+                      {repo.status === "FAILED" ? "Action required" : "Safe to leave"}
+                    </strong>
+                    <p>
+                      {repo.status === "FAILED"
+                        ? "Review the processing log, then retry the analysis."
+                        : "Analysis continues in the background. Return whenever you are ready."}
+                    </p>
+                  </div>
+                </div>
+                {repo.status === "FAILED" && (
+                  <button
+                    className="button primary retry-analysis"
+                    onClick={() => void retry()}
+                    disabled={!!working}
+                  >
+                    <RefreshCw size={16} />
+                    Retry analysis
+                  </button>
+                )}
+                <details className="job-logs" open={repo.status === "FAILED"}>
+                  <summary>
+                    <span>Processing log</span>
+                    <small>{repo.logs?.length || 0} events</small>
+                  </summary>
+                  <div className="job-log-list">
+                    {repo.logs?.length ? (
+                      repo.logs.map((log, index) => (
+                        <p key={index}>
+                          <span>{log.elapsed_seconds}s</span>
+                          {log.message}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="muted">Waiting for the first event…</p>
+                    )}
+                  </div>
+                </details>
+              </aside>
+            </div>
           )}
         </main>
       </>
