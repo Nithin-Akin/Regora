@@ -111,6 +111,47 @@ test("repository dashboard summarizes and filters workspaces", async ({ page }) 
   ).toBeTruthy();
 });
 
+test("indexing progress explains active analysis", async ({ page }) => {
+  await page.route("**/api/repositories/indexing-demo/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "indexing-demo",
+        name: "Atlas Service",
+        status: "BUILDING_GRAPH",
+        progress: 58,
+        message: "Resolving calls, imports, and inheritance relationships",
+        created_at: "2026-10-08T08:00:00Z",
+        job_id: "job-atlas",
+        logs: [
+          { status: "CLONING", message: "Repository downloaded", elapsed_seconds: 1.4 },
+          { status: "SCANNING", message: "Detected Python and TypeScript", elapsed_seconds: 2.7 },
+          { status: "PARSING", message: "Extracted 326 symbols", elapsed_seconds: 5.2 },
+        ],
+      }),
+    });
+  });
+  await page.goto("/repository/indexing-demo");
+  await expect(page.getByRole("heading", { name: "Mapping Atlas Service" })).toBeVisible();
+  await expect(page.getByLabel("Analysis progress")).toContainText("Building repository intelligence");
+  await expect(page.getByLabel("58% complete")).toBeVisible();
+  await page.screenshot({
+    path: screenshotPath("indexing.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText("Safe to leave")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: screenshotPath("indexing-mobile.png"),
+    fullPage: true,
+  });
+});
+
 test("real graph, search, source citations and impact", async ({
   page,
   request,
