@@ -69,6 +69,28 @@ def test_invalid_github_is_rejected_before_queue(client):
     assert response.status_code == 422
 
 
+def test_demo_reuses_existing_workspace(client):
+    class DemoStore(FakeStore):
+        def repositories(self, owner_id=None):
+            return [
+                {
+                    "id": "demo-ready",
+                    "name": "Northstar Commerce",
+                    "kind": "demo",
+                    "source": "included-demo",
+                    "status": "READY",
+                    "owner_id": owner_id,
+                    "logs": "[]",
+                }
+            ]
+
+    app.dependency_overrides[get_store] = lambda: DemoStore()
+    response = client.post("/api/repositories/demo")
+    assert response.status_code == 202
+    assert response.json()["id"] == "demo-ready"
+    assert "owner_id" not in response.json()
+
+
 def test_source_only_serves_indexed_files(client):
     assert client.get("/api/repositories/r/source", params={"path": "../../etc/passwd"}).status_code == 404
     data = client.get("/api/repositories/r/source", params={"path": "utils/tokens.py"}).json()

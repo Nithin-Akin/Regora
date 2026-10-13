@@ -57,6 +57,80 @@ test("landing page imports and mobile layout", async ({ page }) => {
   });
 });
 
+test("sample repository opens with guided onboarding", async ({ page }) => {
+  await page.route("**/api/repositories/demo", async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "sample" }),
+    });
+  });
+  await page.route("**/api/repositories/sample/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body: unknown;
+    if (path.endsWith("/status")) {
+      body = {
+        id: "sample",
+        name: "Northstar Commerce",
+        status: "READY",
+        progress: 100,
+        message: "Ready",
+        created_at: "2026-10-13T08:00:00Z",
+        job_id: "sample-job",
+      };
+    } else if (path.endsWith("/overview")) {
+      body = {
+        files: 1,
+        lines: 24,
+        nodes: 1,
+        relationships: 0,
+        counts: { Component: 1 },
+        languages: { Python: 1 },
+        largest_modules: {},
+        hubs: [],
+        cycles: [],
+        potentially_unused: [],
+        unresolved_relationships: 0,
+      };
+    } else if (path.endsWith("/files")) {
+      body = [];
+    } else {
+      body = {
+        nodes: [
+          {
+            id: "component-api",
+            name: "api",
+            type: "Component",
+            qualified_name: "api",
+            file_path: "",
+            language: "Python",
+            start_line: 0,
+            end_line: 0,
+            signature: "",
+            docstring: "",
+            module: "api",
+            count: 4,
+          },
+        ],
+        edges: [],
+      };
+    }
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Try sample repository" }).click();
+  await expect(page).toHaveURL(/\/repository\/sample\?sample=1/);
+  await expect(page.getByText("Explore the sample")).toBeVisible();
+  await expect(page.getByLabel("Suggested sample steps")).toContainText("Ask with evidence");
+  await expect(page.locator(".cy-container canvas").first()).toBeVisible();
+  await page.screenshot({
+    path: screenshotPath("sample-onboarding.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Dismiss sample guide" }).click();
+  await expect(page.getByText("Explore the sample")).not.toBeVisible();
+});
+
 test("repository dashboard summarizes and filters workspaces", async ({ page }) => {
   await page.route("**/api/repositories", async (route) => {
     await route.fulfill({

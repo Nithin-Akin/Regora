@@ -1436,6 +1436,60 @@ summary {
   align-items: center;
   flex-shrink: 0;
 }
+.sample-guide {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+.sample-guide-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent-border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+.sample-guide > div:nth-child(2) {
+  min-width: 210px;
+}
+.sample-guide strong {
+  font-size: 12px;
+}
+.sample-guide p {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.sample-guide-steps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.sample-guide-steps span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.sample-guide-steps b {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 9px;
+}
 .workspace-tabs > button:not(.icon-button) {
   height: 34px;
   display: flex;
@@ -2821,6 +2875,9 @@ summary {
   .workspace-grid .sidebar {
     display: none;
   }
+  .sample-guide-steps {
+    display: none;
+  }
   .workspace-grid.hide-right,
   .workspace-grid.hide-left.hide-right {
     grid-template-columns: 1fr;
@@ -3050,6 +3107,15 @@ summary {
   .workspace-grid .workspace-tabs > .icon-button,
   .workspace-grid .right-tabs > .icon-button {
     display: none;
+  }
+  .sample-guide {
+    padding: 9px 11px;
+  }
+  .sample-guide-icon {
+    display: none;
+  }
+  .sample-guide > div:nth-child(2) {
+    min-width: 0;
   }
   .workspace-tabs > button:not(.icon-button) {
     font-size: 11px;
