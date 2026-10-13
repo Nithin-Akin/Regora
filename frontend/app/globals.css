@@ -1260,6 +1260,9 @@ summary {
 .workspace-grid.hide-left.hide-right {
   grid-template-columns: 1fr;
 }
+.mobile-workspace-nav {
+  display: none;
+}
 .sidebar {
   background: var(--surface-low);
   border-right: 1px solid var(--line);
@@ -2896,9 +2899,8 @@ summary {
     font-size: 9px;
   }
   .workspace {
-    overflow: auto;
-    height: auto;
-    min-height: 100dvh;
+    overflow: hidden;
+    height: 100dvh;
   }
   .workspace-header {
     height: 60px;
@@ -2911,24 +2913,71 @@ summary {
     max-width: 145px;
   }
   .workspace-grid,
-  .workspace-grid.hide-left {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100dvh - 60px);
+  .workspace-grid.hide-left,
+  .workspace-grid.hide-right,
+  .workspace-grid.hide-left.hide-right {
+    display: block;
+    height: calc(100dvh - 114px);
+    min-height: 0;
   }
-  .center-panel {
-    height: 55dvh;
-    min-height: 370px;
+  .mobile-workspace-nav {
+    height: 54px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 6px 10px;
+    gap: 6px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-low);
     flex-shrink: 0;
   }
+  .mobile-workspace-nav button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+  }
+  .mobile-workspace-nav button.active {
+    color: var(--accent-text);
+    border-color: var(--border-soft);
+    background: var(--surface-accent);
+  }
+  .workspace-grid .sidebar,
+  .workspace-grid .center-panel,
+  .workspace-grid .right-panel {
+    display: none;
+  }
+  .workspace-grid.mobile-explorer .sidebar {
+    display: flex;
+    height: 100%;
+    border-right: 0;
+  }
+  .workspace-grid.mobile-graph .center-panel {
+    display: flex;
+  }
+  .workspace-grid.mobile-assistant .right-panel {
+    display: flex;
+  }
+  .center-panel {
+    height: 100%;
+    min-height: 0;
+  }
   .right-panel {
-    height: 65dvh;
-    min-height: 400px;
+    height: 100%;
+    min-height: 0;
     border-left: 0;
-    border-top: 1px solid var(--line);
+    border-top: 0;
   }
   .workspace-grid.hide-right .center-panel {
-    height: calc(100dvh - 60px);
+    height: 100%;
+  }
+  .workspace-grid .sidebar-heading .icon-button,
+  .workspace-grid .workspace-tabs > .icon-button,
+  .workspace-grid .right-tabs > .icon-button {
+    display: none;
   }
   .workspace-tabs > button:not(.icon-button) {
     font-size: 11px;

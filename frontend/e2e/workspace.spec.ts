@@ -220,6 +220,17 @@ test("real graph, search, source citations and impact", async ({
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("navigation", { name: "Mobile workspace" })).toBeVisible();
+  await page.getByRole("button", { name: "Explorer", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Search repository" })).toBeVisible();
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Assistant", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await expect(page.locator(".cy-container canvas").first()).toBeVisible();
+  await page.screenshot({
+    path: screenshotPath("workspace-mobile.png"),
+    fullPage: true,
+  });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
