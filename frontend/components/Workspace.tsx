@@ -511,12 +511,12 @@ export default function Workspace({
       localStorage.setItem("repograph-session-" + id, result.session_id);
       await showEvidence(result);
     } catch (e) {
-      fail(e);
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
-          content: "The request failed. " + (e as Error).message,
+          content: "I could not complete that request. " + (e as Error).message,
+          retryText: text,
         },
       ]);
     } finally {
@@ -903,6 +903,15 @@ export default function Workspace({
               <div className="section-label">
                 SOURCE FILES <span>{files.length}</span>
               </div>
+              {groups.length === 0 && (
+                <div className="panel-empty">
+                  <FileCode2 size={22} />
+                  <strong>No source files found</strong>
+                  <span>
+                    The repository may contain only unsupported or ignored files.
+                  </span>
+                </div>
+              )}
               {groups.map(([group, items]) => (
                 <details key={group} open>
                   <summary>
@@ -1108,6 +1117,11 @@ export default function Workspace({
                 selected={selected?.id}
                 highlights={highlights}
                 layout={layout}
+                emptyFiltered={graph.nodes.length > 0}
+                onResetFilters={() => {
+                  setNodeType("");
+                  setRelationship("");
+                }}
               />
               <div className="graph-status">
                 <span>
@@ -1376,6 +1390,16 @@ export default function Workspace({
                         )}
                       </div>
                       <div className="message-content">{m.content}</div>
+                      {m.retryText && (
+                        <button
+                          className="message-retry"
+                          onClick={() => void ask(m.retryText)}
+                          disabled={asking}
+                        >
+                          <RefreshCw size={13} />
+                          Try again
+                        </button>
+                      )}
                       {m.result && (
                         <>
                           <div className="citations">

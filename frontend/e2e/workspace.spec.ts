@@ -152,6 +152,30 @@ test("indexing progress explains active analysis", async ({ page }) => {
   });
 });
 
+test("repository dashboard recovers after a connection error", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/repositories", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Repository service is unavailable." }),
+      });
+      return;
+    }
+    await route.fulfill({ contentType: "application/json", body: "[]" });
+  });
+  await page.goto("/repositories");
+  await expect(
+    page.getByRole("heading", { name: "Could not load repositories" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(
+    page.getByRole("heading", { name: "No repositories yet" }),
+  ).toBeVisible();
+});
+
 test("real graph, search, source citations and impact", async ({
   page,
   request,
@@ -173,6 +197,16 @@ test("real graph, search, source citations and impact", async ({
   ).toBeVisible();
   await expect(page.locator(".cy-container canvas").first()).toBeVisible();
   await expect(page.locator(".graph-status")).toContainText("nodes");
+  await page
+    .getByRole("combobox", { name: "Node type filter" })
+    .selectOption("Interface");
+  await expect(page.getByText("No nodes match these filters")).toBeVisible();
+  await page.screenshot({
+    path: screenshotPath("graph-empty.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Reset filters" }).click();
+  await expect(page.locator(".cy-container canvas").first()).toBeVisible();
   await page.screenshot({
     path: screenshotPath("workspace.png"),
     fullPage: true,

@@ -181,6 +181,7 @@ export type Message = {
   content: string;
   result?: Answer;
   streaming?: boolean;
+  retryText?: string;
 };
 export type AnswerStreamEvent =
   | { type: "status"; message: string }
