@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -12,6 +12,8 @@ import {
   Activity,
   AlertTriangle,
   Clock3,
+  RefreshCw,
+  WifiOff,
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -23,12 +25,20 @@ export default function Repositories() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  useEffect(() => {
-    api<Repository[]>("/repositories")
-      .then(setRepos)
-      .catch((e) => setError(e.message))
-      .finally(() => setBusy(false));
+  const loadRepositories = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setRepos(await api<Repository[]>("/repositories"));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }, []);
+  useEffect(() => {
+    void loadRepositories();
+  }, [loadRepositories]);
   async function remove(r: Repository) {
     if (!confirm(`Delete ${r.name} and its indexed graph?`)) return;
     try {
@@ -86,11 +96,25 @@ export default function Repositories() {
             </div>
           )}
         </div>
-        {error && <div className="error">{error}</div>}
         {busy ? (
           <div className="empty">
             <LoaderCircle className="spin" />
             Loading repositories…
+          </div>
+        ) : error ? (
+          <div className="empty dashboard-empty dashboard-error" role="alert">
+            <div className="icon-well">
+              <WifiOff size={25} />
+            </div>
+            <h2>Could not load repositories</h2>
+            <p>{error}</p>
+            <button
+              className="button primary"
+              onClick={() => void loadRepositories()}
+            >
+              <RefreshCw size={15} />
+              Try again
+            </button>
           </div>
         ) : repos.length === 0 ? (
           <div className="empty dashboard-empty">
@@ -158,6 +182,12 @@ export default function Repositories() {
                 <Search size={25} />
                 <h2>No matching repositories</h2>
                 <p>Try a different repository name.</p>
+                <button
+                  className="button subtle small"
+                  onClick={() => setQuery("")}
+                >
+                  Clear search
+                </button>
               </div>
             )}
             </div>

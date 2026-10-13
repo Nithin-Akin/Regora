@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import cytoscape, { Core, LayoutOptions } from "cytoscape";
 import dagre from "cytoscape-dagre";
 cytoscape.use(dagre);
-import { Plus, Minus, Maximize, Focus } from "lucide-react";
+import { Plus, Minus, Maximize, Focus, Network, RotateCcw } from "lucide-react";
 import type { GraphData, Node } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
 export const colors: Record<string, string> = {
@@ -24,12 +24,16 @@ export default function Graph({
   selected,
   highlights,
   layout = "cose",
+  emptyFiltered = false,
+  onResetFilters,
 }: {
   data: GraphData;
   onSelect: (n: Node) => void;
   selected?: string;
   highlights: string[];
   layout?: string;
+  emptyFiltered?: boolean;
+  onResetFilters?: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const cy = useRef<Core | null>(null);
@@ -289,7 +293,25 @@ export default function Graph({
         ))}
       </div>
       {data.nodes.length === 0 && (
-        <div className="graph-empty">No nodes match these filters.</div>
+        <div className="graph-empty">
+          <span className="graph-empty-icon">
+            <Network size={24} />
+          </span>
+          <strong>
+            {emptyFiltered ? "No nodes match these filters" : "No graph data found"}
+          </strong>
+          <p>
+            {emptyFiltered
+              ? "Change the node or relationship filters to restore the graph."
+              : "Regora could not extract supported symbols from this repository."}
+          </p>
+          {emptyFiltered && onResetFilters && (
+            <button className="button subtle small" onClick={onResetFilters}>
+              <RotateCcw size={14} />
+              Reset filters
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
