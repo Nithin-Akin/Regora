@@ -143,6 +143,9 @@ export default function Workspace({
   const [pathNotice, setPathNotice] = useState("");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [mobilePanel, setMobilePanel] = useState<
+    "explorer" | "graph" | "assistant"
+  >("graph");
   const fail = useCallback(
     (e: unknown) => setError((e as Error).message || "Something went wrong"),
     [],
@@ -219,6 +222,7 @@ export default function Workspace({
           setRelationship("");
           setSelected(null);
           setHighlights([]);
+          setMobilePanel("graph");
         } catch (e) {
           fail(e);
         } finally {
@@ -231,6 +235,7 @@ export default function Workspace({
       setNodeType("");
       setRight("inspect");
       setRightOpen(true);
+      setMobilePanel("assistant");
       setHighlights([]);
       try {
         const result = await api<{
@@ -781,9 +786,33 @@ export default function Workspace({
           </button>
         </div>
       )}
+      <nav className="mobile-workspace-nav" aria-label="Mobile workspace">
+        <button
+          className={mobilePanel === "explorer" ? "active" : ""}
+          onClick={() => setMobilePanel("explorer")}
+        >
+          <Folder size={16} />
+          Explorer
+        </button>
+        <button
+          className={mobilePanel === "graph" ? "active" : ""}
+          onClick={() => setMobilePanel("graph")}
+        >
+          <Network size={16} />
+          Graph
+        </button>
+        <button
+          className={mobilePanel === "assistant" ? "active" : ""}
+          onClick={() => setMobilePanel("assistant")}
+        >
+          <Sparkles size={16} />
+          Tools
+        </button>
+      </nav>
       <div
         className={
           "workspace-grid " +
+          `mobile-${mobilePanel} ` +
           (!leftOpen ? "hide-left " : "") +
           (!rightOpen ? "hide-right" : "")
         }
