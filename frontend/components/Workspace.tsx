@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   ArrowDownLeft,
@@ -95,6 +96,7 @@ export default function Workspace({
   id: string;
   initialImpact?: string;
 }) {
+  const searchParams = useSearchParams();
   const base = "/repositories/" + id;
   const [repo, setRepo] = useState<Repository | null>(null);
   const [error, setError] = useState("");
@@ -146,6 +148,9 @@ export default function Workspace({
   const [mobilePanel, setMobilePanel] = useState<
     "explorer" | "graph" | "assistant"
   >("graph");
+  const [showSampleGuide, setShowSampleGuide] = useState(
+    searchParams.get("sample") === "1",
+  );
   const fail = useCallback(
     (e: unknown) => setError((e as Error).message || "Something went wrong"),
     [],
@@ -986,6 +991,32 @@ export default function Workspace({
           </div>
         </aside>
         <section className="center-panel">
+          {showSampleGuide && (
+            <div className="sample-guide" role="status">
+              <span className="sample-guide-icon">
+                <Sparkles size={18} />
+              </span>
+              <div>
+                <strong>Explore the sample</strong>
+                <p>
+                  Open a component, trace checkout dependencies, or ask how
+                  authentication works.
+                </p>
+              </div>
+              <div className="sample-guide-steps" aria-label="Suggested sample steps">
+                <span><b>1</b> Select a node</span>
+                <span><b>2</b> Inspect connections</span>
+                <span><b>3</b> Ask with evidence</span>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Dismiss sample guide"
+                onClick={() => setShowSampleGuide(false)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
           <div className="workspace-tabs">
             {!leftOpen && (
               <button

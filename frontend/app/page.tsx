@@ -43,7 +43,7 @@ export default function Home() {
           method: "POST",
           body: JSON.stringify({ url }),
         });
-      router.push("/repository/" + result.id);
+      router.push("/repository/" + result.id + (demo ? "?sample=1" : ""));
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -217,15 +217,15 @@ export default function Home() {
           </div>
           <div className="demo-row">
             <div>
-              <strong>Just exploring?</strong>
-              <span>Try a commerce app with real dependencies.</span>
+              <strong>See Regora before importing your code</strong>
+              <span>Explore authentication, checkout, payments, and database paths.</span>
             </div>
             <button
               className="button subtle"
               disabled={busy}
               onClick={() => void analyze(true)}
             >
-              Open demo <ArrowRight size={16} />
+              Try sample repository <ArrowRight size={16} />
             </button>
           </div>
         </section>

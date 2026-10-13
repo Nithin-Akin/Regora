@@ -145,6 +145,18 @@ def demo(
 ):
     if not settings().demo_dir.is_dir():
         raise HTTPException(503, "The included demo directory is unavailable")
+    existing = next(
+        (
+            repo
+            for repo in store.repositories(user.id)
+            if repo.get("kind") == "demo"
+            and repo.get("source") == "included-demo"
+            and repo.get("status") != "FAILED"
+        ),
+        None,
+    )
+    if existing:
+        return public_repo(existing)
     return enqueue("demo", "included-demo", "Northstar Commerce", store, user.id)
 
 
