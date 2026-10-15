@@ -205,7 +205,7 @@ Tools include semantic and literal search, symbol lookup, source reading, caller
 
 The local embedding model is `sentence-transformers/all-MiniLM-L6-v2`, run through FastEmbed/ONNX. Functions, methods, classes, interfaces, and endpoints are embedded separately; file embeddings use short symbol summaries rather than whole large files. Neo4j initializes a cosine vector index. Current search uses repository-filtered **exact vector similarity inside Neo4j** to avoid global ANN results starving smaller repositories; the index is available for a future per-repository approximate-search optimization.
 
-Hybrid ranking combines exact name matches, token/text overlap, and semantic similarity, with a file-summary penalty favoring useful symbols. Intent chooses relevant graph direction and traversal. This is a deterministic reranking stage; no paid reranker is necessary.
+Hybrid ranking combines exact name matches, token/text overlap, and semantic similarity, with a file-summary penalty favoring useful symbols. Semantic mode keeps dense similarity as its primary signal and uses bounded token overlap to resolve close candidates without admitting lexical-only results. Intent chooses relevant graph direction and traversal. This is a deterministic reranking stage; no paid reranker is necessary.
 
 The default Ollama model runs with thinking disabled and a bounded output size. Local performance depends on CPU resources. Invalid or unavailable LLM outputs yield a clearly marked static-evidence response with real citations. Failed embeddings make ingestion fail visibly and can be retried; semantic search never fabricates vectors or scores.
 
