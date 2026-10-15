@@ -60,7 +60,12 @@ class HybridRetrieval:
             elif mode == "text":
                 score = 1.0 if q in text else 0
             elif mode == "semantic":
-                score = similarity
+                # Dense similarity remains the primary signal. Token overlap
+                # resolves close candidates, while file summaries are
+                # downweighted so actionable symbols are not crowded out.
+                score = 0.85 * similarity + 0.15 * lexical if similarity > 0 else 0
+                if node.type == "File":
+                    score *= 0.65
             else:
                 score = 0.50 * similarity + 0.25 * lexical + exact
                 if node.type == "File":

@@ -52,6 +52,39 @@ def test_semantic_provider_failure_not_faked(demo_intelligence):
     assert result["results"] == [] and result["warning"]
 
 
+def test_semantic_reranking_keeps_database_persistence_symbol_in_top_five(
+    demo_intelligence,
+):
+    scores = {
+        "models/entities.py:Order": 0.7693,
+        "web/events.js:trackCheckout": 0.6894,
+        "web/events.js": 0.6765,
+        "web/checkout.ts:submitCheckout": 0.6677,
+        "api/routes.py:checkout": 0.6542,
+        "services/orders.py:OrderService": 0.6530,
+        "api/routes.py": 0.6487,
+        "services/orders.py:OrderService.checkout": 0.6472,
+    }
+
+    class Store:
+        def vector_search(self, repository_id, vector, limit):
+            return [
+                {"id": node.id, "score": scores[node.qualified_name]}
+                for node in demo_intelligence.graph.nodes
+                if node.qualified_name in scores
+                and node.type
+                in {"File", "Function", "Method", "Class", "Interface", "Endpoint"}
+            ]
+
+    result = HybridRetrieval(demo_intelligence, Store()).search(
+        "persist checkout order to database", mode="semantic", top_k=5
+    )
+    assert "services/orders.py:OrderService.checkout" in {
+        row["qualified_name"] for row in result["results"]
+    }
+    assert all(row["semantic_score"] > 0 for row in result["results"])
+
+
 def test_tool_scope_and_unknown_tools(demo_intelligence):
     tools = AgentTools(demo_intelligence, SessionStore())
     with pytest.raises(ValueError):
