@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 from app.config import settings
 from app.graph.store import get_store
 from app.api.routes import router
+from app.mcp.server import mcp, mcp_http_app
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -19,7 +20,8 @@ async def lifespan(app):
         get_store().initialize()
     except Exception:
         logging.exception("Neo4j initialization failed; health endpoint will report unavailability")
-    yield
+    async with mcp.session_manager.run():
+        yield
     get_store().driver.close()
 
 
@@ -28,9 +30,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings().cors_origins,
     allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization", "Mcp-Protocol-Version", "Mcp-Session-Id"],
+    expose_headers=["Mcp-Session-Id"],
 )
 app.include_router(router)
+app.mount("/mcp", mcp_http_app)
 
 
 @app.exception_handler(ServiceUnavailable)
