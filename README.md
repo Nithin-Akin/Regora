@@ -30,6 +30,7 @@ Open **http://localhost:3000**. Choose **Open demo**, upload a ZIP, or enter a p
 - API and interactive API reference: http://localhost:8000/docs
 - Service health: http://localhost:8000/api/health
 - Neo4j Browser: http://localhost:7474 (credentials from `.env`)
+- MCP endpoint for coding agents: http://localhost:8000/mcp/
 
 There is **no paid API key requirement** with the default configuration. If an LLM request fails or returns invalid evidence references, the UI explicitly labels a deterministic evidence response instead. Semantic search still uses genuine embeddings; it does not substitute keyword scores and call them semantic similarity.
 
@@ -90,6 +91,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, preview and publish an updatable GitHub comment, or download the full grounded Markdown review.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
+- **MCP server:** use Regora's read-only search, symbol, dependency-path, and change-impact tools from Codex, Cursor, Claude Code, and other MCP clients. See [the setup guide](docs/MCP.md).
 - **Grounded impact answers:** every assistant impact response leads with the deterministic score, direct and transitive blast radius, affected areas, endpoints, database interactions, depth, inheritance evidence, and static-analysis limits.
 
 Source citations open an integrated read-only, syntax-highlighted viewer at the indexed line range. Source is loaded lazily from the database, not from a client-supplied filesystem path.
