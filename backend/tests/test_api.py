@@ -35,6 +35,17 @@ class FakeStore:
                 "name": "Test",
                 "status": "READY",
                 "warnings": "[]",
+                "architecture_policy": json.dumps(
+                    {
+                        "configured": True,
+                        "source": ".regora.yml",
+                        "status": "PASS",
+                        "summary": {"rules": 1, "passed": 1, "warnings": 0, "errors": 0, "violations": 0},
+                        "rules": [],
+                        "violations": [],
+                        "error": None,
+                    }
+                ),
                 "kind": "github",
                 "source": "https://github.com/acme/shop",
             }
@@ -98,11 +109,39 @@ def test_source_only_serves_indexed_files(client):
 
 
 def test_graph_overview_search_and_limits(client):
-    assert client.get("/api/repositories/r/overview").json()["files"] > 0
+    overview = client.get("/api/repositories/r/overview").json()
+    assert overview["files"] > 0
+    assert overview["architecture_policy"]["status"] == "PASS"
+    assert client.get("/api/repositories/r/architecture-policy").json()["source"] == ".regora.yml"
+    assert client.get("/api/repositories/r/architecture-policy/check").status_code == 200
     assert client.get("/api/repositories/r/graph").json()["nodes"]
     assert client.get("/api/repositories/r/graph?depth=50").status_code == 422
     response = client.get("/api/repositories/r/search?q=verify_token&mode=symbol")
     assert response.json()["results"][0]["name"] == "verify_token"
+
+
+def test_architecture_policy_check_fails_for_error_violations(client):
+    class FailingPolicyStore(FakeStore):
+        def repository(self, id, owner_id=None):
+            repository = super().repository(id, owner_id)
+            if repository:
+                repository["architecture_policy"] = json.dumps(
+                    {
+                        "configured": True,
+                        "source": ".regora.yml",
+                        "status": "FAIL",
+                        "summary": {"rules": 1, "passed": 0, "warnings": 0, "errors": 1, "violations": 1},
+                        "rules": [],
+                        "violations": [],
+                        "error": None,
+                    }
+                )
+            return repository
+
+    app.dependency_overrides[get_store] = lambda: FailingPolicyStore()
+    response = client.get("/api/repositories/r/architecture-policy/check")
+    assert response.status_code == 409
+    assert response.json()["detail"]["policy"]["status"] == "FAIL"
 
 
 def test_unknown_symbol_returns_404(client):

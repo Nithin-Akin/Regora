@@ -1261,6 +1261,90 @@ export default function Workspace({
                     </button>
                   ))}
                 </div>
+                <h3>Architecture quality gates</h3>
+                {overview.architecture_policy?.configured ? (
+                  overview.architecture_policy.status === "INVALID" ? (
+                    <div className="policy-summary invalid">
+                      <AlertTriangle size={18} />
+                      <span>
+                        <strong>Policy configuration is invalid</strong>
+                        <small>{overview.architecture_policy.error}</small>
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className={`policy-summary ${overview.architecture_policy.status.toLowerCase()}`}
+                      >
+                        {overview.architecture_policy.status === "PASS" ? (
+                          <ShieldCheck size={18} />
+                        ) : (
+                          <AlertTriangle size={18} />
+                        )}
+                        <span>
+                          <strong>
+                            {overview.architecture_policy.status === "PASS"
+                              ? "All architecture rules passed"
+                              : `${overview.architecture_policy.summary.violations} architecture violation${overview.architecture_policy.summary.violations === 1 ? "" : "s"}`}
+                          </strong>
+                          <small>
+                            {overview.architecture_policy.summary.passed} passed ·{" "}
+                            {overview.architecture_policy.summary.errors} errors ·{" "}
+                            {overview.architecture_policy.summary.warnings} warnings ·{" "}
+                            {overview.architecture_policy.source}
+                          </small>
+                        </span>
+                      </div>
+                      <div className="policy-rules">
+                        {overview.architecture_policy.rules.map((rule) => {
+                          const violation = rule.violations[0];
+                          const content = (
+                            <>
+                              <span className={`policy-state ${rule.status.toLowerCase()}`}>
+                                {rule.status}
+                              </span>
+                              <span>
+                                <strong>{rule.name}</strong>
+                                <small>
+                                  {rule.violation_count
+                                    ? `${rule.violation_count} violation${rule.violation_count === 1 ? "" : "s"}`
+                                    : "No violations found"}
+                                </small>
+                              </span>
+                              {violation && <ArrowUpRight size={16} />}
+                            </>
+                          );
+                          return violation ? (
+                            <button
+                              key={rule.id}
+                              onClick={() =>
+                                void showEvidence({
+                                  symbols: violation.path,
+                                  paths: [violation.path],
+                                } as Answer).catch(fail)
+                              }
+                            >
+                              {content}
+                            </button>
+                          ) : (
+                            <div key={rule.id}>{content}</div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <div className="policy-summary unconfigured">
+                    <ShieldCheck size={18} />
+                    <span>
+                      <strong>No architecture policy configured</strong>
+                      <small>
+                        Add .regora.yml to enforce dependency boundaries and
+                        cycle rules.
+                      </small>
+                    </span>
+                  </div>
+                )}
                 <h3>Architecture insights</h3>
                 {overview.cycles.map((cycle, index) => (
                   <button

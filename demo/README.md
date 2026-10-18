@@ -52,6 +52,7 @@ Expected result:
 - **Architecture** groups symbols into codebase components.
 - **Dependencies** shows symbol-level calls, imports, inheritance, and data access.
 - **Overview** summarizes languages, connected components, cycles, and unresolved relationships.
+- **Architecture quality gates** evaluate the included `.regora.yml`. The web-to-model boundary passes, while the intentional dependency cycle appears as a warning with graph evidence.
 - **Inspector** shows source, callers, callees, and local graph neighborhoods.
 - **Analyze Impact** estimates the files, routes, and dependent symbols affected by a change.
 

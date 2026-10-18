@@ -1,5 +1,6 @@
 """Read-only Model Context Protocol access to indexed repository intelligence."""
 
+import json
 from typing import Any, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -9,6 +10,7 @@ from app.agents.tools import AgentTools
 from app.config import settings
 from app.graph.store import get_store
 from app.services.cache import intelligence
+from app.services.architecture_policy import empty_policy
 
 
 mcp = MCPServer(
@@ -65,6 +67,14 @@ def list_repositories() -> list[dict]:
 def repository_overview(repository_id: str) -> dict:
     """Return architecture metrics, highly connected components, cycles, and code-health signals."""
     return _tools(repository_id).execute("repository_overview", {})
+
+
+@mcp.tool(annotations=READ_ONLY)
+def get_architecture_policy(repository_id: str) -> dict:
+    """Return version-controlled architecture rules, their status, and exact violation evidence."""
+    _tools(repository_id)
+    repository = _local_store().repository(repository_id, "local")
+    return json.loads(repository["architecture_policy"]) if repository.get("architecture_policy") else empty_policy()
 
 
 @mcp.tool(annotations=READ_ONLY)

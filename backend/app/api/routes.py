@@ -31,6 +31,7 @@ from app.services.pull_requests import (
     publish_pull_request_comment,
     validate_pull_request_repository,
 )
+from app.services.architecture_policy import empty_policy
 from app.workers.ingestion import ingest, job_failure, now
 
 router = APIRouter(prefix="/api")
@@ -291,7 +292,24 @@ def overview(id: str, i=Depends(ready), store: GraphStore = Depends(get_store)):
     metadata = store.repository(id)
     result["warnings"] = json.loads(metadata.get("warnings", "[]"))
     result["architecture"] = json.loads(metadata["architecture"]) if metadata.get("architecture") else None
+    result["architecture_policy"] = (
+        json.loads(metadata["architecture_policy"]) if metadata.get("architecture_policy") else empty_policy()
+    )
     return result
+
+
+@router.get("/repositories/{id}/architecture-policy")
+def architecture_policy(id: str, i=Depends(ready), store: GraphStore = Depends(get_store)):
+    metadata = store.repository(id)
+    return json.loads(metadata["architecture_policy"]) if metadata.get("architecture_policy") else empty_policy()
+
+
+@router.get("/repositories/{id}/architecture-policy/check")
+def architecture_policy_check(id: str, i=Depends(ready), store: GraphStore = Depends(get_store)):
+    report = architecture_policy(id, i, store)
+    if report["status"] in {"FAIL", "INVALID"}:
+        raise HTTPException(409, detail={"message": "Architecture quality gate failed", "policy": report})
+    return report
 
 
 @router.get("/repositories/{id}/graph")
