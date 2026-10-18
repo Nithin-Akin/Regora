@@ -17,6 +17,7 @@ class RepositoryStore:
                 "languages": ["Python"],
                 "updated_at": "2026-01-01T00:00:00Z",
                 "source": "private",
+                "architecture_policy": '{"configured":true,"status":"PASS"}',
             },
             {"id": "repo-failed", "name": "Failed", "status": "FAILED", "source": "private"},
         ]
@@ -24,7 +25,11 @@ class RepositoryStore:
     def repository(self, repository_id, owner_id):
         assert owner_id == "local"
         if repository_id == "repo-ready":
-            return {"id": repository_id, "status": "READY"}
+            return {
+                "id": repository_id,
+                "status": "READY",
+                "architecture_policy": '{"configured":true,"status":"PASS"}',
+            }
         return None
 
 
@@ -55,6 +60,7 @@ async def test_mcp_lists_repositories_without_private_metadata(local_mcp):
         assert names == {
             "list_repositories",
             "repository_overview",
+            "get_architecture_policy",
             "search_code",
             "get_symbol",
             "read_source",
@@ -98,6 +104,15 @@ async def test_mcp_maps_public_tool_names_to_bounded_agent_tools(local_mcp):
         "tool": "analyze_impact",
         "arguments": {"symbol_id": "symbol-1"},
     }
+
+
+@pytest.mark.anyio
+async def test_mcp_returns_stored_architecture_policy(monkeypatch):
+    monkeypatch.setattr(server, "get_store", lambda: RepositoryStore())
+    monkeypatch.setattr(server, "_tools", lambda repository_id: StubTools())
+    async with Client(server.mcp) as client:
+        result = await client.call_tool("get_architecture_policy", {"repository_id": "repo-ready"})
+    assert json.loads(result.content[0].text) == {"configured": True, "status": "PASS"}
 
 
 def test_mcp_rejects_shared_auth_mode(monkeypatch):

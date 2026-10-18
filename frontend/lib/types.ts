@@ -47,6 +47,37 @@ export type Repository = {
   logs?: { status: string; message: string; elapsed_seconds: number }[];
   warnings?: string[];
 };
+export type ArchitectureViolation = {
+  rule_id: string;
+  severity: "warning" | "error";
+  message: string;
+  path: string[];
+  nodes: Pick<Node, "id" | "name" | "type" | "file_path" | "start_line" | "end_line">[];
+  evidence: Edge[];
+};
+export type ArchitecturePolicy = {
+  configured: boolean;
+  source: string | null;
+  status: "NOT_CONFIGURED" | "INVALID" | "PASS" | "WARN" | "FAIL";
+  summary: {
+    rules: number;
+    passed: number;
+    warnings: number;
+    errors: number;
+    violations: number;
+  };
+  rules: {
+    id: string;
+    name: string;
+    type: "forbid_dependency" | "no_cycles";
+    severity: "warning" | "error";
+    status: "PASS" | "WARN" | "FAIL";
+    violation_count: number;
+    violations: ArchitectureViolation[];
+  }[];
+  violations: ArchitectureViolation[];
+  error: string | null;
+};
 export type Overview = {
   files: number;
   lines: number;
@@ -61,6 +92,7 @@ export type Overview = {
   unresolved_relationships: number;
   warnings?: string[];
   architecture?: Answer;
+  architecture_policy?: ArchitecturePolicy;
 };
 export type Impact = {
   symbol_id: string;

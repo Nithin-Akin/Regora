@@ -56,6 +56,7 @@ claude mcp add --transport http regora http://localhost:8000/mcp/
 |---|---|
 | `list_repositories` | Find available repository IDs and indexing status |
 | `repository_overview` | Read architecture metrics, hubs, cycles, and health signals |
+| `get_architecture_policy` | Read architecture-rule status and exact violation evidence |
 | `search_code` | Run hybrid, semantic, literal-text, or symbol search |
 | `get_symbol` | Inspect a symbol and its immediate graph neighborhood |
 | `read_source` | Read the indexed source excerpt for a symbol |

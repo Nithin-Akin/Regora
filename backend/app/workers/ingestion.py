@@ -11,6 +11,7 @@ from app.graph.intelligence import Intelligence
 from app.security.repositories import extract_zip, clone_github, scan_files
 from app.parsers.pipeline import analyze_repository
 from app.embeddings.providers import embed_graph
+from app.services.architecture_policy import load_architecture_policy
 
 log = logging.getLogger("repograph.ingestion")
 
@@ -109,11 +110,14 @@ def ingest(repository_id, kind, source):
             embedding_cache,
         )
         store.update_embeddings(rows)
-        stage("ANALYZING", 92, "Analyzing architecture, dependency hubs, and cycles")
-        overview = Intelligence(graph).overview()
+        stage("ANALYZING", 92, "Analyzing architecture, quality gates, dependency hubs, and cycles")
+        graph_intelligence = Intelligence(graph)
+        overview = graph_intelligence.overview()
+        architecture_policy = load_architecture_policy(root, graph_intelligence)
         store.update_repository(
             repository_id,
             overview=json.dumps(overview),
+            architecture_policy=json.dumps(architecture_policy),
             embedding_model=settings().embedding_model,
             embedding_provider=settings().embedding_provider,
         )

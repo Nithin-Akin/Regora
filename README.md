@@ -87,6 +87,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **Inspector:** signatures, source ranges, docstrings, incoming/outgoing evidence, callers, callees, source viewing, and impact analysis.
 - **Assistant:** intent-aware retrieval, application-controlled tools, persistent conversation context, clickable citations, and graph evidence highlighting.
 - **Overview:** actual counts, language distribution, connection hubs, cycles, potentially unused symbols, and an automatically generated architecture explanation.
+- **Architecture quality gates:** define dependency boundaries and cycle rules in `.regora.yml`, then inspect exact graph evidence for each violation. See [the rules guide](docs/ARCHITECTURE_RULES.md).
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, preview and publish an updatable GitHub comment, or download the full grounded Markdown review.

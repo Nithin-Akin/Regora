@@ -19,6 +19,7 @@ dependencies = [
     "fastembed",
     "numpy",
     "mcp>=2,<3",
+    "pyyaml>=6,<7",
 ]
 [dependency-groups]
 dev = ["pytest", "pytest-cov", "ruff"]

@@ -1,0 +1,13 @@
+version: 1
+rules:
+  - id: web-data-boundary
+    name: Web clients cannot depend on database models
+    type: forbid_dependency
+    from: web/**
+    to: models/**
+    severity: error
+
+  - id: dependency-cycles
+    name: Avoid dependency cycles
+    type: no_cycles
+    severity: warning
