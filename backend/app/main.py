@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 from app.config import settings
 from app.graph.store import get_store
 from app.api.routes import router
+from app.api.github_webhooks import router as github_webhook_router
 from app.mcp.server import mcp, mcp_http_app
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -34,6 +35,7 @@ app.add_middleware(
     expose_headers=["Mcp-Session-Id"],
 )
 app.include_router(router)
+app.include_router(github_webhook_router)
 app.mount("/mcp", mcp_http_app)
 
 

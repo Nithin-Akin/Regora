@@ -74,6 +74,20 @@ services:
       DATA_DIR: /data
       DEMO_DIR: /demo/shop
       WORKER_QUEUES: architecture
+  pull-request-worker:
+    <<: *backend
+    command: ["python", "-m", "app.workers.run"]
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      DEMO_DIR: /demo/shop
+      WORKER_QUEUES: pull-requests
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from rq import Worker; from app.services.cache import redis_connection; assert Worker.all(connection=redis_connection())\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   frontend:
     build: ./frontend
     environment:

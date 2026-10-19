@@ -62,7 +62,7 @@ def public_repo(repo):
         for k, v in repo.items()
         if k not in {"source_root", "source", "overview", "owner_id"}
     }
-    for key in ("logs", "warnings"):
+    for key in ("logs", "warnings", "last_pr_guardian"):
         if isinstance(data.get(key), str):
             data[key] = json.loads(data[key])
     return data
