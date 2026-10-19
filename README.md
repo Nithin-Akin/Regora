@@ -91,6 +91,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **Paths:** choose a source node with **Set path start**, select a destination, then **Find connection**. **Trace downstream** explores dependency paths from a single node.
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, preview and publish an updatable GitHub comment, or download the full grounded Markdown review.
+- **Continuous PR Guardian:** install the GitHub App to review every pull request update, enforce `.regora.yml` through a commit status, and rerun reviews with trusted `/regora` commands. See [the setup guide](docs/GITHUB_PR_GUARDIAN.md).
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 - **MCP server:** use Regora's read-only search, symbol, dependency-path, and change-impact tools from Codex, Cursor, Claude Code, and other MCP clients. See [the setup guide](docs/MCP.md).
 - **Grounded impact answers:** every assistant impact response leads with the deterministic score, direct and transitive blast radius, affected areas, endpoints, database interactions, depth, inheritance evidence, and static-analysis limits.
@@ -107,6 +108,9 @@ flowchart LR
     Gateway --> API
     API --> Meta[Neo4j RepositoryMeta / ChatSession]
     API --> Queue[Redis / RQ queue]
+    GitHub[GitHub App webhooks] --> API
+    Queue --> Guardian[PR Guardian worker]
+    Guardian --> GitHub
     Queue --> Worker[Isolated ingestion worker]
     Worker --> Source[Bounded ZIP extraction / authorized GitHub clone]
     Source --> Parse[Tree-sitter language adapters]
@@ -245,6 +249,8 @@ Copy `.env.example` and edit values before starting Compose. Compose fixes its i
 | `LLM_BASE_URL` | `http://ollama:11434/v1` |
 | `LLM_API_KEY` | Empty for local Ollama |
 | `GITHUB_TOKEN` | Optional token for a higher public pull request API rate limit |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` | GitHub App credentials for continuous pull request reviews |
+| `GITHUB_WEBHOOK_SECRET` | Verifies webhook signatures before a review is queued |
 | `AUTH_MODE` | `local` for zero-setup use or `github` for authenticated owner-isolated workspaces |
 | `AUTH_URL` | Public application origin used for OAuth redirects, such as `http://localhost:3000` |
 | `AUTH_SECRET` | Encrypts Auth.js sessions; required in GitHub mode |
@@ -363,4 +369,4 @@ Python/JS/TS support covers common declarations, imports, aliases, lexical calls
 
 Database interaction patterns are probable static evidence, not proof of an executed transaction. Plain source secrets are not automatically redacted before analysis; keep sensitive repositories local or use an approved provider. Large repositories are bounded rather than claimed to support unlimited graph materialization. Endpoints absent from recognized static patterns are not fabricated.
 
-Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, GitHub App installation authorization, team workspaces, and a larger manually reviewed grounding evaluation set.
+Useful next extensions: compiler-assisted TypeScript resolution, richer framework adapters, alias/re-export analysis, per-repository ANN partitions, incremental parsing, team workspaces, and a larger manually reviewed grounding evaluation set.

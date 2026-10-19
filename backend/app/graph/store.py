@@ -63,6 +63,22 @@ class GraphStore:
             )
         ]
 
+    def github_repository(self, owner: str, name: str, installation_id: int):
+        sources = [
+            f"https://github.com/{owner}/{name}",
+            f"https://github.com/{owner}/{name}.git",
+        ]
+        rows = self.query(
+            "MATCH (r:RepositoryMeta) "
+            "WHERE r.kind='github' AND r.status='READY' AND toLower(r.source) IN $sources "
+            "AND (r.github_installation_id=$installation_id OR r.github_installation_id IS NULL) "
+            "RETURN properties(r) AS repo "
+            "ORDER BY r.github_installation_id IS NOT NULL DESC, r.updated_at DESC LIMIT 1",
+            sources=[source.lower() for source in sources],
+            installation_id=installation_id,
+        )
+        return rows[0]["repo"] if rows else None
+
     def save_graph(self, id, graph):
         # One transaction: readers see either the old graph or the complete new graph.
         def write(tx):
