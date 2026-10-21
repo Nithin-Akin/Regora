@@ -16,11 +16,12 @@ dependencies = [
     "tree-sitter-typescript",
     "networkx",
     "httpx",
-    "fastembed",
+    "fastembed>=0.2.7,<0.3",
     "numpy",
     "mcp>=2,<3",
     "pyyaml>=6,<7",
     "pyjwt[crypto]>=2,<3",
+    "pillow>=13",
 ]
 [dependency-groups]
 dev = ["pytest", "pytest-cov", "ruff"]

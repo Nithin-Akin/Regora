@@ -18,6 +18,10 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: uv sync --directory backend --frozen
+      - name: Audit production dependencies
+        run: |
+          uv export --directory backend --frozen --no-dev --format requirements-txt --no-emit-project > /tmp/requirements.txt
+          uvx --python 3.12 --from pip-audit==2.10.1 pip-audit --no-deps -r /tmp/requirements.txt
       - run: uv run --directory backend pytest -q
       - run: uv run --directory backend ruff check app tests --select F
 
@@ -33,6 +37,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --prefix frontend
+      - run: npm audit --prefix frontend --omit=dev
       - run: npm test --prefix frontend
       - run: npm run typecheck --prefix frontend
       - run: npm run build --prefix frontend
