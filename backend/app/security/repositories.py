@@ -149,6 +149,104 @@ def clone_github(url: str, destination: Path, token: str = ""):
     return destination
 
 
+def clone_github_pull(url: str, destination: Path, pull_request: int, token: str = ""):
+    """Fetch one GitHub pull-request head without trusting a branch name from the payload."""
+    url = validate_github(url)
+    if not isinstance(pull_request, int) or pull_request < 1:
+        raise ValueError("Invalid GitHub pull request number")
+    env = github_clone_environment(token)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    commands = [
+        ["git", "-c", "core.hooksPath=/dev/null", "init", "--", str(destination)],
+        [
+            "git",
+            "-C",
+            str(destination),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "protocol.file.allow=never",
+            "remote",
+            "add",
+            "origin",
+            url,
+        ],
+    ]
+    with open(os.devnull, "wb") as sink:
+        try:
+            for command in commands:
+                subprocess.run(command, env=env, stdout=sink, stderr=sink, check=True, timeout=20)
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise ValueError("Could not initialize the pull request workspace") from exc
+        fetch = [
+            "git",
+            "-C",
+            str(destination),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "protocol.file.allow=never",
+            "-c",
+            "http.followRedirects=false",
+            "fetch",
+            "--depth",
+            "1",
+            "--no-tags",
+            "origin",
+            f"refs/pull/{pull_request}/head",
+        ]
+        started = time.monotonic()
+        process = subprocess.Popen(fetch, env=env, stdout=sink, stderr=sink)
+        try:
+            while process.poll() is None:
+                size = 0
+                count = 0
+                for root, _, files in os.walk(destination, followlinks=False):
+                    for name in files:
+                        path = Path(root) / name
+                        if not path.is_symlink():
+                            try:
+                                size += path.stat().st_size
+                                count += 1
+                            except FileNotFoundError:
+                                continue
+                if (
+                    size > settings().max_extracted_mb * 1024**2
+                    or count > settings().max_files
+                    or time.monotonic() - started > 120
+                ):
+                    raise ValueError("Pull request fetch exceeded size, file count, or 120-second time limit")
+                time.sleep(0.2)
+            if process.returncode:
+                raise ValueError("GitHub could not fetch this pull request head")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(destination),
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "checkout",
+                    "--detach",
+                    "FETCH_HEAD",
+                ],
+                env=env,
+                stdout=sink,
+                stderr=sink,
+                check=True,
+                timeout=30,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise ValueError("GitHub pull request checkout failed") from exc
+    scan_files(destination)
+    return destination
+
+
 def scan_files(root: Path):
     files = []
     total = 0
