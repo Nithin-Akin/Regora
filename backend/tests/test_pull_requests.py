@@ -6,10 +6,21 @@ from app.graph.intelligence import Intelligence
 from app.services.pull_requests import (
     analyze_pull_request,
     changed_line_ranges,
+    fetch_pull_request,
     parse_pull_request_url,
     publish_pull_request_comment,
     validate_pull_request_repository,
 )
+
+
+class GitHubResponse:
+    def __init__(self, payload, status_code=200, next_page=False):
+        self.payload = payload
+        self.status_code = status_code
+        self.headers = {"link": '<https://api.github.com/next>; rel="next"'} if next_page else {}
+
+    def json(self):
+        return self.payload
 
 
 def payload():
@@ -42,6 +53,62 @@ def test_pull_request_url_and_hunks_are_bounded():
     assert changed_line_ranges("@@ -4,6 +8,3 @@") == [(4, 9), (8, 10)]
     with pytest.raises(ValueError):
         parse_pull_request_url("https://evil.test/acme/shop/pull/12")
+
+
+def test_fetch_pull_request_follows_file_pages(monkeypatch):
+    requested_pages = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, url, params=None):
+            if not url.endswith("/files"):
+                return GitHubResponse({"number": 12})
+            page = params["page"]
+            requested_pages.append(page)
+            return GitHubResponse(
+                [{"filename": f"page-{page}.py"}],
+                next_page=page == 1,
+            )
+
+    monkeypatch.setattr(pull_requests.httpx, "Client", Client)
+    result = fetch_pull_request("https://github.com/acme/shop/pull/12", "token")
+    assert requested_pages == [1, 2]
+    assert [item["filename"] for item in result["files"]] == ["page-1.py", "page-2.py"]
+    assert result["truncated"] is False
+
+
+def test_fetch_pull_request_caps_changed_files(monkeypatch):
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, url, params=None):
+            if not url.endswith("/files"):
+                return GitHubResponse({"number": 12})
+            page = params["page"]
+            return GitHubResponse(
+                [{"filename": f"page-{page}-{index}.py"} for index in range(100)],
+                next_page=True,
+            )
+
+    monkeypatch.setattr(pull_requests.httpx, "Client", Client)
+    result = fetch_pull_request("https://github.com/acme/shop/pull/12", "token")
+    assert len(result["files"]) == 500
+    assert result["truncated"] is True
 
 
 def test_pull_request_maps_changed_lines_to_graph_impact(demo_intelligence):
