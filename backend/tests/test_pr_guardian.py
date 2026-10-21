@@ -113,6 +113,61 @@ def test_guardian_reports_error_status_when_analysis_fails(monkeypatch):
     with pytest.raises(RuntimeError, match="analysis failed"):
         pr_guardian.review_pull_request("repo-1", "https://github.com/acme/shop/pull/7", 42)
     assert statuses == ["pending", "error"]
+    assert store.updated["status"] == "ERROR"
+    assert store.updated["error"] == "analysis failed"
+
+
+def test_guardian_persists_installation_authentication_failure(monkeypatch):
+    store = Store({"configured": False, "status": "NOT_CONFIGURED", "rules": [], "error": None})
+    monkeypatch.setattr(pr_guardian, "get_store", lambda: store)
+    pr_guardian.get_store.cache_clear = lambda: None
+    monkeypatch.setattr(
+        pr_guardian,
+        "installation_token",
+        lambda installation_id: (_ for _ in ()).throw(RuntimeError("GitHub App authentication failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="authentication failed"):
+        pr_guardian.review_pull_request(
+            "repo-1",
+            "https://github.com/acme/shop/pull/7",
+            42,
+            "delivery-auth",
+            head_sha="abc123",
+        )
+    assert store.updated["status"] == "ERROR"
+    assert store.updated["head_sha"] == "abc123"
+    assert store.updated["error"] == "GitHub App authentication failed"
+
+
+def test_guardian_marks_known_head_when_pull_request_fetch_fails(monkeypatch):
+    store = Store({"configured": False, "status": "NOT_CONFIGURED", "rules": [], "error": None})
+    statuses = []
+    monkeypatch.setattr(pr_guardian, "get_store", lambda: store)
+    pr_guardian.get_store.cache_clear = lambda: None
+    monkeypatch.setattr(pr_guardian, "installation_token", lambda installation_id: "token")
+    monkeypatch.setattr(
+        pr_guardian,
+        "fetch_pull_request",
+        lambda url, token: (_ for _ in ()).throw(ValueError("GitHub could not return this pull request.")),
+    )
+    monkeypatch.setattr(
+        pr_guardian,
+        "publish_commit_status",
+        lambda owner, repo, sha, state, description, token, target_url="": statuses.append(state),
+    )
+
+    with pytest.raises(ValueError, match="could not return"):
+        pr_guardian.review_pull_request(
+            "repo-1",
+            "https://github.com/acme/shop/pull/7",
+            42,
+            "delivery-fetch",
+            head_sha="abc123",
+        )
+    assert statuses == ["error"]
+    assert store.updated["status"] == "ERROR"
+    assert store.updated["error"] == "GitHub could not return this pull request."
 
 
 def test_comment_mode_has_bounded_evidence_sections():

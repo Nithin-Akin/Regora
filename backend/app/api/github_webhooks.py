@@ -86,16 +86,21 @@ async def github_webhook(
         raise HTTPException(422, "GitHub webhook contains an invalid pull request URL") from exc
     if (pr_owner.lower(), pr_name.lower()) != (owner.lower(), name.lower()):
         raise HTTPException(422, "Pull request does not belong to the webhook repository")
-    repository = store.github_repository(owner, name, installation_id)
+    try:
+        repository = store.github_repository(owner, name, installation_id)
+    except Exception:
+        redis_connection().delete(delivery_key)
+        raise
     if not repository:
         return {
             "status": "ignored",
             "reason": "repository_not_indexed",
             "delivery_id": x_github_delivery,
         }
-    if not repository.get("github_installation_id"):
-        store.update_repository(repository["id"], github_installation_id=installation_id)
     try:
+        if not repository.get("github_installation_id"):
+            store.update_repository(repository["id"], github_installation_id=installation_id)
+        head_sha = ((payload.get("pull_request") or {}).get("head") or {}).get("sha", "")
         job = Queue("pull-requests", connection=redis_connection()).enqueue(
             review_pull_request,
             repository["id"],
@@ -103,6 +108,7 @@ async def github_webhook(
             installation_id,
             x_github_delivery,
             command,
+            head_sha,
             job_timeout=600,
             result_ttl=86400,
             failure_ttl=604800,

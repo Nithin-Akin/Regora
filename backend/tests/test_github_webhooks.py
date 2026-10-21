@@ -39,6 +39,7 @@ def pull_request_payload():
         "pull_request": {
             "draft": False,
             "html_url": "https://github.com/acme/shop/pull/7",
+            "head": {"sha": "abc123"},
         },
     }
 
@@ -80,6 +81,7 @@ def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
         42,
         "delivery-1",
         "review",
+        "abc123",
     )
     assert store.updated == ("repo-1", {"github_installation_id": 42})
 
@@ -114,3 +116,28 @@ def test_invalid_webhook_signature_is_rejected(monkeypatch):
         },
     )
     assert response.status_code == 401
+
+
+def test_repository_failure_releases_delivery_for_github_retry(monkeypatch):
+    cache = Redis()
+
+    class FailingStore(Store):
+        def github_repository(self, owner, name, installation_id):
+            raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(github_webhooks, "verify_webhook_signature", lambda body, signature: None)
+    monkeypatch.setattr(github_webhooks, "redis_connection", lambda: cache)
+    app.dependency_overrides[get_store] = lambda: FailingStore()
+    response = TestClient(app, raise_server_exceptions=False).post(
+        "/api/github/webhooks",
+        json=pull_request_payload(),
+        headers={
+            "X-Hub-Signature-256": "signed",
+            "X-GitHub-Event": "pull_request",
+            "X-GitHub-Delivery": "delivery-retry",
+        },
+    )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert "regora:github-delivery:delivery-retry" not in cache.keys
