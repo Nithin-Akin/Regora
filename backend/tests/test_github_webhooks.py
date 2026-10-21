@@ -25,7 +25,7 @@ class Store:
 
     def github_repository(self, owner, name, installation_id):
         assert (owner, name, installation_id) == ("acme", "shop", 42)
-        return {"id": "repo-1", "github_installation_id": None}
+        return {"status": "BOUND", "repository": {"id": "repo-1", "github_installation_id": 42}}
 
     def update_repository(self, repository_id, **updates):
         self.updated = (repository_id, updates)
@@ -83,7 +83,7 @@ def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
         "review",
         "abc123",
     )
-    assert store.updated == ("repo-1", {"github_installation_id": 42})
+    assert store.updated is None
 
 
 def test_only_trusted_pull_request_commands_are_selected():
@@ -141,3 +141,29 @@ def test_repository_failure_releases_delivery_for_github_retry(monkeypatch):
 
     assert response.status_code == 500
     assert "regora:github-delivery:delivery-retry" not in cache.keys
+
+
+def test_ambiguous_repository_binding_is_reported_without_queueing(monkeypatch):
+    cache = Redis()
+
+    class AmbiguousStore(Store):
+        def github_repository(self, owner, name, installation_id):
+            return {"status": "AMBIGUOUS", "repository": None}
+
+    monkeypatch.setattr(github_webhooks, "verify_webhook_signature", lambda body, signature: None)
+    monkeypatch.setattr(github_webhooks, "redis_connection", lambda: cache)
+    app.dependency_overrides[get_store] = lambda: AmbiguousStore()
+    response = TestClient(app).post(
+        "/api/github/webhooks",
+        json=pull_request_payload(),
+        headers={
+            "X-Hub-Signature-256": "signed",
+            "X-GitHub-Event": "pull_request",
+            "X-GitHub-Delivery": "delivery-ambiguous",
+        },
+    )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "ignored"
+    assert response.json()["reason"] == "ambiguous_repository_binding"
