@@ -13,6 +13,8 @@ PR_URL = re.compile(
 )
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
 REVIEW_MARKER = re.compile(r"\n?<!-- regora-review:[^>]*-->")
+MAX_PR_FILES = 500
+MAX_PR_FILE_PAGES = 5
 
 
 class GitHubPublishError(ValueError):
@@ -67,21 +69,45 @@ def fetch_pull_request(url: str, token: str = "") -> dict:
     try:
         with httpx.Client(timeout=20, follow_redirects=False, headers=headers) as client:
             response = client.get(root)
-            files_response = client.get(root + "/files", params={"per_page": 100})
+            if response.status_code == 404:
+                raise ValueError("Pull request not found or your GitHub account cannot access it.")
+            if response.status_code == 403:
+                raise ValueError(
+                    "GitHub denied this request or its API limit was reached. Check repository access and retry."
+                )
+            if response.status_code != 200:
+                raise ValueError("GitHub could not return this pull request.")
+            files = []
+            truncated = False
+            for page in range(1, MAX_PR_FILE_PAGES + 1):
+                files_response = client.get(root + "/files", params={"per_page": 100, "page": page})
+                if files_response.status_code == 403:
+                    raise ValueError(
+                        "GitHub denied this request or its API limit was reached. Check repository access and retry."
+                    )
+                if files_response.status_code != 200:
+                    raise ValueError("GitHub could not return this pull request.")
+                page_files = files_response.json()
+                if not isinstance(page_files, list):
+                    raise ValueError("GitHub returned an invalid pull request file list.")
+                remaining = MAX_PR_FILES - len(files)
+                files.extend(page_files[:remaining])
+                has_next = 'rel="next"' in files_response.headers.get("link", "")
+                if len(page_files) > remaining or len(files) == MAX_PR_FILES:
+                    truncated = has_next or len(page_files) > remaining
+                    break
+                if not has_next:
+                    break
+            else:
+                truncated = has_next
     except httpx.HTTPError as exc:
         raise ValueError("GitHub could not be reached. Try again in a moment.") from exc
-    if response.status_code == 404:
-        raise ValueError("Pull request not found or your GitHub account cannot access it.")
-    if response.status_code == 403 or files_response.status_code == 403:
-        raise ValueError("GitHub denied this request or its API limit was reached. Check repository access and retry.")
-    if response.status_code != 200 or files_response.status_code != 200:
-        raise ValueError("GitHub could not return this pull request.")
     return {
         "owner": owner,
         "repository": repo,
         "pull_request": response.json(),
-        "files": files_response.json(),
-        "truncated": 'rel="next"' in files_response.headers.get("link", ""),
+        "files": files,
+        "truncated": truncated,
     }
 
 
