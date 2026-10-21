@@ -68,16 +68,54 @@ class GraphStore:
             f"https://github.com/{owner}/{name}",
             f"https://github.com/{owner}/{name}.git",
         ]
-        rows = self.query(
+        parameters = {
+            "sources": [source.lower() for source in sources],
+            "installation_id": installation_id,
+        }
+        bound = self.query(
             "MATCH (r:RepositoryMeta) "
             "WHERE r.kind='github' AND r.status='READY' AND toLower(r.source) IN $sources "
-            "AND (r.github_installation_id=$installation_id OR r.github_installation_id IS NULL) "
-            "RETURN properties(r) AS repo "
-            "ORDER BY r.github_installation_id IS NOT NULL DESC, r.updated_at DESC LIMIT 1",
-            sources=[source.lower() for source in sources],
+            "AND r.github_installation_id=$installation_id "
+            "RETURN properties(r) AS repo LIMIT 2",
+            **parameters,
+        )
+        if len(bound) == 1:
+            return {"status": "BOUND", "repository": bound[0]["repo"]}
+        if len(bound) > 1:
+            return {"status": "AMBIGUOUS", "repository": None}
+        unbound = self.query(
+            "MATCH (r:RepositoryMeta) "
+            "WHERE r.kind='github' AND r.status='READY' AND toLower(r.source) IN $sources "
+            "AND r.github_installation_id IS NULL "
+            "RETURN properties(r) AS repo ORDER BY r.updated_at DESC LIMIT 2",
+            **parameters,
+        )
+        if not unbound:
+            return {"status": "NOT_FOUND", "repository": None}
+        if len(unbound) > 1:
+            return {"status": "AMBIGUOUS", "repository": None}
+        repository_id = unbound[0]["repo"]["id"]
+        claimed = self.query(
+            "MATCH (r:RepositoryMeta {id:$repository_id}) "
+            "WHERE r.github_installation_id IS NULL "
+            "SET r.github_installation_id=$installation_id "
+            "RETURN properties(r) AS repo",
+            repository_id=repository_id,
             installation_id=installation_id,
         )
-        return rows[0]["repo"] if rows else None
+        if claimed:
+            return {"status": "BOUND", "repository": claimed[0]["repo"]}
+        rebound = self.query(
+            "MATCH (r:RepositoryMeta {id:$repository_id, github_installation_id:$installation_id}) "
+            "RETURN properties(r) AS repo",
+            repository_id=repository_id,
+            installation_id=installation_id,
+        )
+        return (
+            {"status": "BOUND", "repository": rebound[0]["repo"]}
+            if rebound
+            else {"status": "CONFLICT", "repository": None}
+        )
 
     def save_graph(self, id, graph):
         # One transaction: readers see either the old graph or the complete new graph.

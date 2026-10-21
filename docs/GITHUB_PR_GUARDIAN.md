@@ -63,6 +63,8 @@ The analysis uses the currently indexed revision. Reindex Regora after the base 
 
 - **Webhook returns 401:** verify `GITHUB_WEBHOOK_SECRET` and the GitHub App webhook secret match.
 - **Webhook says `repository_not_indexed`:** index the repository using its canonical GitHub URL first.
+- **Webhook says `ambiguous_repository_binding`:** delete duplicate indexed copies of the GitHub repository, keep one ready copy, then redeliver the event.
+- **Webhook says `repository_binding_conflict`:** another installation claimed the indexed copy; index a separate copy before retrying.
 - **Authentication fails:** verify the App ID, private key, and installation are correct.
 - **Comment fails:** confirm **Issues: Read and write** is enabled; pull request comments use the Issues API.
 - **Status is missing:** confirm **Commit statuses: Read and write** is enabled.

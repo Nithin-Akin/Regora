@@ -87,19 +87,23 @@ async def github_webhook(
     if (pr_owner.lower(), pr_name.lower()) != (owner.lower(), name.lower()):
         raise HTTPException(422, "Pull request does not belong to the webhook repository")
     try:
-        repository = store.github_repository(owner, name, installation_id)
+        binding = store.github_repository(owner, name, installation_id)
     except Exception:
         redis_connection().delete(delivery_key)
         raise
-    if not repository:
+    if binding["status"] != "BOUND":
+        reason = {
+            "NOT_FOUND": "repository_not_indexed",
+            "AMBIGUOUS": "ambiguous_repository_binding",
+            "CONFLICT": "repository_binding_conflict",
+        }.get(binding["status"], "repository_binding_failed")
         return {
             "status": "ignored",
-            "reason": "repository_not_indexed",
+            "reason": reason,
             "delivery_id": x_github_delivery,
         }
+    repository = binding["repository"]
     try:
-        if not repository.get("github_installation_id"):
-            store.update_repository(repository["id"], github_installation_id=installation_id)
         head_sha = ((payload.get("pull_request") or {}).get("head") or {}).get("sha", "")
         job = Queue("pull-requests", connection=redis_connection()).enqueue(
             review_pull_request,
