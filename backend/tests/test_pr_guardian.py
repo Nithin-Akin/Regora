@@ -34,6 +34,8 @@ class Store:
         return {
             "id": repository_id,
             "status": "READY",
+            "kind": "github",
+            "source": "https://github.com/acme/shop",
             "architecture_policy": json.dumps(self.policy),
         }
 
@@ -62,8 +64,11 @@ def test_guardian_runs_pending_then_failure_for_policy(monkeypatch):
             "pull_request": {"number": 7, "head": {"sha": "abc123"}},
         },
     )
-    monkeypatch.setattr(pr_guardian, "intelligence", lambda repository_id: object())
-    monkeypatch.setattr(pr_guardian, "analyze_pull_request", lambda *args: review_report())
+    monkeypatch.setattr(
+        pr_guardian,
+        "analyze_pull_request_head",
+        lambda *args: (review_report(), policy),
+    )
     monkeypatch.setattr(
         pr_guardian,
         "publish_pull_request_comment",
@@ -99,10 +104,9 @@ def test_guardian_reports_error_status_when_analysis_fails(monkeypatch):
             "pull_request": {"number": 7, "head": {"sha": "abc123"}},
         },
     )
-    monkeypatch.setattr(pr_guardian, "intelligence", lambda repository_id: object())
     monkeypatch.setattr(
         pr_guardian,
-        "analyze_pull_request",
+        "analyze_pull_request_head",
         lambda *args: (_ for _ in ()).throw(RuntimeError("analysis failed")),
     )
     monkeypatch.setattr(
@@ -176,3 +180,60 @@ def test_comment_mode_has_bounded_evidence_sections():
     assert comment.startswith("## Regora Change Explanation")
     assert "Architecture quality gates" in comment
     assert "tests/test_service.py" in comment
+
+
+def test_pull_request_head_introduced_policy_violation_fails(tmp_path, monkeypatch):
+    def clone(url, destination, pull_request, token):
+        destination.mkdir()
+        (destination / "api").mkdir()
+        (destination / "data").mkdir()
+        (destination / "api/routes.py").write_text(
+            "from data.store import save\n\ndef checkout():\n    save()\n"
+        )
+        (destination / "data/store.py").write_text("def save():\n    return True\n")
+        (destination / ".regora.yml").write_text(
+            "version: 1\n"
+            "rules:\n"
+            "  - id: api-data\n"
+            "    type: forbid_dependency\n"
+            "    name: API cannot call data directly\n"
+            "    from: api/**\n"
+            "    to: data/**\n"
+            "    relationships: [CALLS]\n"
+            "    severity: error\n"
+        )
+        return destination
+
+    monkeypatch.setattr(pr_guardian, "clone_github_pull", clone)
+    payload = {
+        "owner": "acme",
+        "repository": "shop",
+        "pull_request": {
+            "number": 7,
+            "title": "Break the API boundary",
+            "html_url": "https://github.com/acme/shop/pull/7",
+            "state": "open",
+            "base": {"ref": "main"},
+            "head": {"ref": "boundary-change", "sha": "abc123"},
+        },
+        "files": [
+            {
+                "filename": "api/routes.py",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 0,
+                "patch": "@@ -1,0 +1,4 @@",
+            }
+        ],
+        "truncated": False,
+    }
+    report, policy = pr_guardian.analyze_pull_request_head(
+        "repo-1",
+        {"kind": "github", "source": "https://github.com/acme/shop"},
+        payload,
+        "token",
+    )
+    assert report["analysis_revision"] == "pull-request-head"
+    assert report["summary"]["symbols_changed"] >= 1
+    assert policy["status"] == "FAIL"
+    assert policy["violations"][0]["rule_id"] == "api-data"

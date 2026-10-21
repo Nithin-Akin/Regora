@@ -1,7 +1,15 @@
 import stat
 import zipfile
 import pytest
-from app.security.repositories import extract_zip, github_clone_environment, validate_github, scan_files
+
+from app.security import repositories
+from app.security.repositories import (
+    clone_github_pull,
+    extract_zip,
+    github_clone_environment,
+    scan_files,
+    validate_github,
+)
 
 
 @pytest.mark.parametrize("name", ["../../etc/passwd", "/tmp/file", "C:/file", "a\\b"])
@@ -48,6 +56,37 @@ def test_private_clone_token_uses_process_environment_not_url():
     assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
     assert env["GIT_CONFIG_VALUE_0"].startswith("Authorization: Basic ")
     assert "secret-token" not in env["GIT_CONFIG_VALUE_0"]
+
+
+def test_pull_request_clone_fetches_only_numeric_github_ref(tmp_path, monkeypatch):
+    commands = []
+    destination = tmp_path / "pull"
+
+    def run(command, **kwargs):
+        commands.append(command)
+        if "checkout" in command:
+            destination.mkdir(exist_ok=True)
+            (destination / "app.py").write_text("def ready(): return True\n")
+
+    class Process:
+        returncode = 0
+
+        def __init__(self, command, **kwargs):
+            commands.append(command)
+
+        @staticmethod
+        def poll():
+            return 0
+
+    monkeypatch.setattr(repositories.subprocess, "run", run)
+    monkeypatch.setattr(repositories.subprocess, "Popen", Process)
+    assert clone_github_pull("https://github.com/acme/shop", destination, 12, "secret-token") == destination
+    fetch = next(command for command in commands if "fetch" in command)
+    assert fetch[-1] == "refs/pull/12/head"
+    assert all("secret-token" not in part for command in commands for part in command)
+
+    with pytest.raises(ValueError, match="number"):
+        clone_github_pull("https://github.com/acme/shop", destination, 0, "secret-token")
 
 
 def test_scan_ignores_symlinks_vendor_minified(tmp_path):

@@ -185,7 +185,7 @@ def publish_pull_request_comment(url: str, comment: str, token: str, actor_id: s
     }
 
 
-def analyze_pull_request(intelligence, repository: dict, payload: dict) -> dict:
+def analyze_pull_request(intelligence, repository: dict, payload: dict, revision: str = "indexed") -> dict:
     expected = repository_identity(repository.get("source", ""))
     actual = (payload["owner"].lower(), payload["repository"].lower())
     if repository.get("kind") != "github" or expected != actual:
@@ -274,7 +274,12 @@ def analyze_pull_request(intelligence, repository: dict, payload: dict) -> dict:
         "unmatched_files": unmatched,
         "graph": intelligence.subgraph(graph_ids, limit=300),
         "truncated": payload["truncated"] or len(changed_ids) > 50,
-        "caveat": "Potential impact is calculated from the currently indexed revision and static dependencies. Added files and dynamic behavior may require reindexing the pull request branch.",
+        "analysis_revision": revision,
+        "caveat": (
+            "Potential impact is calculated from the pull request head and static dependencies. Dynamic behavior may add dependencies."
+            if revision == "pull-request-head"
+            else "Potential impact is calculated from the currently indexed revision and static dependencies. Added files and dynamic behavior may require reindexing the pull request branch."
+        ),
     }
     result["review"] = reviewer.review(result)
     return result

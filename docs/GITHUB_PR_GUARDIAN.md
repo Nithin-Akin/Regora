@@ -1,6 +1,6 @@
 # GitHub PR Guardian
 
-Regora can review every pull request update automatically. A signed GitHub webhook queues an isolated review, maps changed lines to the indexed dependency graph, updates one persistent pull request comment, and publishes the `Regora / PR Guardian` commit status.
+Regora can review every pull request update automatically. A signed GitHub webhook queues an isolated review, builds a temporary graph from the exact pull request head, maps changed lines and downstream impact, updates one persistent pull request comment, and publishes the `Regora / PR Guardian` commit status.
 
 The review includes changed symbols, downstream files and routes, connected tests, coverage gaps, architecture quality gates, and exact source locations. Regora reports a failed status when `.regora.yml` has an error-level violation. Other attention items remain visible in a successful review because they are guidance rather than enforced policy.
 
@@ -57,7 +57,7 @@ Regora automatically reviews pull requests when they are opened, reopened, updat
 
 Repeated updates edit the same Regora comment instead of adding new comments. GitHub delivery IDs are retained for 24 hours, so retried webhook deliveries do not create duplicate jobs. The latest completed run is also stored in the repository metadata returned by the Regora API.
 
-The analysis uses the currently indexed revision. Reindex Regora after the base branch changes so dependency and policy evidence remains current. Regora does not execute pull request code.
+Each review fetches GitHub's numeric pull-request ref into a bounded temporary workspace, evaluates the pull request's own `.regora.yml`, and deletes the workspace after analysis. The persistent indexed graph is never replaced by a pull request review. Regora parses source statically and does not execute pull request code.
 
 ## Troubleshooting
 
