@@ -3,9 +3,11 @@
 import json
 from collections import defaultdict
 from functools import lru_cache
+
 from neo4j import GraphDatabase
+
 from app.config import settings
-from app.models.schema import CodeGraph, CodeNode, CodeEdge
+from app.models.schema import CodeEdge, CodeGraph, CodeNode
 from app.parsers.pipeline import RELATIONS
 
 
@@ -22,7 +24,11 @@ class GraphStore:
         self.query("CREATE CONSTRAINT code_id IF NOT EXISTS FOR (n:CodeNode) REQUIRE n.id IS UNIQUE")
         self.query("CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (r:RepositoryMeta) REQUIRE r.id IS UNIQUE")
         self.query("CREATE CONSTRAINT chat_id IF NOT EXISTS FOR (c:ChatSession) REQUIRE c.id IS UNIQUE")
+        self.query("CREATE CONSTRAINT guardian_run_id IF NOT EXISTS FOR (g:GuardianRun) REQUIRE g.id IS UNIQUE")
         self.query("CREATE INDEX code_repository IF NOT EXISTS FOR (n:CodeNode) ON (n.repository_id)")
+        self.query(
+            "CREATE INDEX guardian_run_repository IF NOT EXISTS FOR (g:GuardianRun) ON (g.repository_id)"
+        )
         self.query(
             "CREATE VECTOR INDEX code_embeddings IF NOT EXISTS FOR (n:CodeNode) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: $dimensions, `vector.similarity_function`: 'cosine'}}",
             dimensions=settings().embedding_dimensions,
@@ -117,6 +123,68 @@ class GraphStore:
             else {"status": "CONFLICT", "repository": None}
         )
 
+    def create_guardian_run(self, data):
+        rows = self.query(
+            "CREATE (g:GuardianRun) SET g = $data RETURN properties(g) AS run",
+            data=data,
+        )
+        self.prune_guardian_runs(data["repository_id"])
+        return rows[0]["run"]
+
+    def prune_guardian_runs(self, repository_id: str, keep: int = 200):
+        self.query(
+            "MATCH (g:GuardianRun {repository_id:$repository_id}) "
+            "WITH g ORDER BY g.created_at DESC SKIP $keep DETACH DELETE g",
+            repository_id=repository_id,
+            keep=keep,
+        )
+
+    def guardian_run(self, id: str, repository_id: str):
+        rows = self.query(
+            "MATCH (g:GuardianRun {id:$id, repository_id:$repository_id}) "
+            "RETURN properties(g) AS run",
+            id=id,
+            repository_id=repository_id,
+        )
+        return rows[0]["run"] if rows else None
+
+    def guardian_runs(self, repository_id: str, limit: int = 50):
+        return [
+            row["run"]
+            for row in self.query(
+                "MATCH (g:GuardianRun {repository_id:$repository_id}) "
+                "RETURN properties(g) AS run ORDER BY g.created_at DESC LIMIT $limit",
+                repository_id=repository_id,
+                limit=limit,
+            )
+        ]
+
+    def update_guardian_run(self, id: str, **fields):
+        self.query(
+            "MATCH (g:GuardianRun {id:$id}) SET g += $fields",
+            id=id,
+            fields=fields,
+        )
+
+    def create_guardian_retry(self, source: dict, data: dict):
+        """Atomically creates one retry for a failed run.
+
+        The deterministic retry id makes repeated clicks return the same run.
+        A failed retry can itself be retried, preserving the full attempt chain.
+        """
+        rows = self.query(
+            "MATCH (source:GuardianRun {id:$source_id, repository_id:$repository_id, status:'ERROR'}) "
+            "MERGE (retry:GuardianRun {id:$retry_id}) "
+            "ON CREATE SET retry = $data "
+            "RETURN properties(retry) AS run",
+            source_id=source["id"],
+            repository_id=source["repository_id"],
+            retry_id=data["id"],
+            data=data,
+        )
+        self.prune_guardian_runs(source["repository_id"])
+        return rows[0]["run"] if rows else None
+
     def save_graph(self, id, graph):
         # One transaction: readers see either the old graph or the complete new graph.
         def write(tx):
@@ -167,7 +235,10 @@ class GraphStore:
 
     def delete_repository(self, id):
         self.query(
-            "MATCH (n) WHERE (n:CodeNode AND n.repository_id=$id) OR (n:RepositoryMeta AND n.id=$id) OR (n:ChatSession AND n.repository_id=$id) DETACH DELETE n",
+            "MATCH (n) WHERE (n:CodeNode AND n.repository_id=$id) "
+            "OR (n:RepositoryMeta AND n.id=$id) "
+            "OR (n:ChatSession AND n.repository_id=$id) "
+            "OR (n:GuardianRun AND n.repository_id=$id) DETACH DELETE n",
             id=id,
         )
 

@@ -21,9 +21,11 @@ from app.models.schema import (
     TraceRequest,
 )
 from app.retrieval.hybrid import HybridRetrieval
-from app.security.repositories import validate_github
 from app.security.auth import CurrentUser, current_user
+from app.security.repositories import validate_github
+from app.services.architecture_policy import empty_policy
 from app.services.cache import intelligence, redis_connection, snapshot
+from app.services.pr_guardian import review_pull_request
 from app.services.pull_requests import (
     GitHubPublishError,
     analyze_pull_request,
@@ -31,7 +33,6 @@ from app.services.pull_requests import (
     publish_pull_request_comment,
     validate_pull_request_repository,
 )
-from app.services.architecture_policy import empty_policy
 from app.workers.ingestion import ingest, job_failure, now
 
 router = APIRouter(prefix="/api")
@@ -66,6 +67,32 @@ def public_repo(repo):
         if isinstance(data.get(key), str):
             data[key] = json.loads(data[key])
     return data
+
+
+def public_guardian_run(run):
+    return {
+        key: run.get(key)
+        for key in (
+            "id",
+            "status",
+            "pull_request",
+            "pr_url",
+            "head_sha",
+            "command",
+            "delivery_id",
+            "retry_of",
+            "created_at",
+            "updated_at",
+            "started_at",
+            "completed_at",
+            "failed_at",
+            "review_status",
+            "policy_status",
+            "comment_url",
+            "error",
+        )
+        if run.get(key) not in {None, ""}
+    }
 
 
 def enqueue(kind, source, name, store, owner_id, github_token="", id=None):
@@ -284,6 +311,111 @@ def reindex(
         store.update_repository(id, status="FAILED", message="Could not enqueue reindex")
         raise
     return public_repo(store.repository(id))
+
+
+@router.get("/repositories/{id}/github-integration")
+def github_integration(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    config = settings()
+    app_configured = bool(config.github_app_id and config.github_app_private_key)
+    token_fallback = bool(config.github_token)
+    webhook_configured = bool(config.github_webhook_secret)
+    github_repository = repo.get("kind") == "github"
+    bound = bool(repo.get("github_installation_id"))
+    ready_for_reviews = github_repository and (app_configured or token_fallback) and webhook_configured and bound
+    steps = []
+    if not github_repository:
+        steps.append("Index this repository from its GitHub URL.")
+    if not app_configured and not token_fallback:
+        steps.append("Configure GitHub App credentials.")
+    if not webhook_configured:
+        steps.append("Configure the GitHub webhook secret.")
+    if github_repository and not bound:
+        steps.append("Install the GitHub App and deliver a signed repository webhook to bind it.")
+    return {
+        "status": "READY" if ready_for_reviews else "NEEDS_SETUP",
+        "authentication": "GITHUB_APP" if app_configured else "TOKEN_FALLBACK" if token_fallback else "MISSING",
+        "app_configured": app_configured,
+        "webhook_configured": webhook_configured,
+        "repository": {
+            "github_repository": github_repository,
+            "bound": bound,
+            "installation_id": repo.get("github_installation_id"),
+        },
+        "webhook_path": "/api/github/webhooks",
+        "setup_steps": steps,
+        "runs": [public_guardian_run(run) for run in store.guardian_runs(id, 50)],
+    }
+
+
+@router.post("/repositories/{id}/github-integration/runs/{run_id}/retry", status_code=202)
+def retry_guardian_run(
+    id: str,
+    run_id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    source = store.guardian_run(run_id, id)
+    if not source:
+        raise HTTPException(404, "Guardian review run not found")
+    if source.get("status") != "ERROR":
+        raise HTTPException(409, "Only failed Guardian reviews can be retried")
+    installation_id = source.get("installation_id") or repo.get("github_installation_id")
+    if not installation_id or not source.get("pr_url"):
+        raise HTTPException(409, "This review does not contain enough GitHub installation data to retry")
+    created_at = now()
+    enqueue_token = str(uuid4())
+    retry = store.create_guardian_retry(
+        source,
+        {
+            "id": f"retry:{run_id}",
+            "repository_id": id,
+            "status": "QUEUED",
+            "pull_request": source.get("pull_request", 0),
+            "pr_url": source["pr_url"],
+            "head_sha": source.get("head_sha", ""),
+            "command": source.get("command", "review"),
+            "installation_id": installation_id,
+            "delivery_id": "",
+            "retry_of": run_id,
+            "created_at": created_at,
+            "updated_at": created_at,
+            "error": "",
+            "enqueue_token": enqueue_token,
+        },
+    )
+    if not retry:
+        raise HTTPException(409, "Only failed Guardian reviews can be retried")
+    if retry.get("enqueue_token") != enqueue_token:
+        return {"status": "duplicate", "run": public_guardian_run(retry)}
+    try:
+        job = Queue("pull-requests", connection=redis_connection()).enqueue(
+            review_pull_request,
+            id,
+            retry["pr_url"],
+            installation_id,
+            "",
+            retry.get("command", "review"),
+            retry.get("head_sha", ""),
+            retry["id"],
+            job_timeout=600,
+            result_ttl=86400,
+            failure_ttl=604800,
+        )
+    except Exception:
+        store.update_guardian_run(
+            retry["id"],
+            status="ERROR",
+            error="Could not queue the retry",
+            updated_at=now(),
+        )
+        raise
+    return {"status": "queued", "job_id": job.id, "run": public_guardian_run(retry)}
 
 
 @router.get("/repositories/{id}/overview")

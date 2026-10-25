@@ -39,6 +39,7 @@ import Brand from "./Brand";
 import SourceViewer from "./SourceViewer";
 import ThemeToggle from "./ThemeToggle";
 import AccountMenu from "./AccountMenu";
+import GitHubIntegration from "./GitHubIntegration";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import {
   buildPullRequestImpactMarkdown,
@@ -108,7 +109,7 @@ export default function Workspace({
     incoming: [],
     outgoing: [],
   });
-  const [view, setView] = useState<"architecture" | "symbols" | "overview">(
+  const [view, setView] = useState<"architecture" | "symbols" | "overview" | "integration">(
     "architecture",
   );
   const [right, setRight] = useState<
@@ -264,12 +265,13 @@ export default function Workspace({
     },
     [base, fail],
   );
-  async function loadView(next: "architecture" | "symbols" | "overview") {
+  async function loadView(next: "architecture" | "symbols" | "overview" | "integration") {
     setView(next);
     setNodeType("");
     setRelationship("");
     setHighlights([]);
     setSelected(null);
+    if (next === "integration") return;
     if (next === "overview") {
       try {
         setOverview(await api<Overview>(base + "/overview"));
@@ -1048,6 +1050,13 @@ export default function Workspace({
               <Activity size={15} />
               Overview
             </button>
+            <button
+              className={view === "integration" ? "active" : ""}
+              onClick={() => void loadView("integration")}
+            >
+              <ShieldCheck size={15} />
+              Guardian
+            </button>
             <div className="grow" />
             <button
               className="icon-button"
@@ -1069,7 +1078,9 @@ export default function Workspace({
               </button>
             )}
           </div>
-          {view !== "overview" ? (
+          {view === "integration" ? (
+            <GitHubIntegration base={base} />
+          ) : view !== "overview" ? (
             <>
               <div className="graph-toolbar">
                 <span className="view-label">

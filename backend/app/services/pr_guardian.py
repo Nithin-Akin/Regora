@@ -23,6 +23,11 @@ def _failure_message(exc: Exception) -> str:
     return f"{type(exc).__name__}: automatic review failed"
 
 
+def _update_run(store, run_id: str, **fields) -> None:
+    if run_id and hasattr(store, "update_guardian_run"):
+        store.update_guardian_run(run_id, updated_at=datetime.now(UTC).isoformat(), **fields)
+
+
 def analyze_pull_request_head(repository_id: str, repository: dict, payload: dict, token: str) -> tuple[dict, dict]:
     with tempfile.TemporaryDirectory(prefix="regora-pr-") as temporary:
         root = clone_github_pull(
@@ -107,6 +112,7 @@ def review_pull_request(
     delivery_id: str = "",
     command: str = "review",
     head_sha: str = "",
+    run_id: str = "",
 ) -> dict:
     get_store.cache_clear()
     store = get_store()
@@ -115,6 +121,7 @@ def review_pull_request(
         raise ValueError("The indexed repository is not ready for automatic review")
     token = ""
     payload = None
+    _update_run(store, run_id, status="RUNNING", started_at=datetime.now(UTC).isoformat())
     try:
         token = installation_token(installation_id)
         payload = fetch_pull_request(pr_url, token)
@@ -155,7 +162,20 @@ def review_pull_request(
             "policy_status": policy["status"],
             "command": command,
             "comment": publication,
+            "completed_at": datetime.now(UTC).isoformat(),
         }
+        _update_run(
+            store,
+            run_id,
+            status="COMPLETE",
+            pull_request=pr["number"],
+            head_sha=head_sha,
+            review_status=report["review"]["status"],
+            policy_status=policy["status"],
+            comment_url=publication.get("url", ""),
+            completed_at=result["completed_at"],
+            error="",
+        )
         store.update_repository(repository_id, last_pr_guardian=json.dumps(result))
         log.info(json.dumps({"repository_id": repository_id, **result}))
         return result
@@ -186,6 +206,14 @@ def review_pull_request(
             "failed_at": datetime.now(UTC).isoformat(),
         }
         try:
+            _update_run(
+                store,
+                run_id,
+                status="ERROR",
+                head_sha=head_sha,
+                error=failure["error"],
+                failed_at=failure["failed_at"],
+            )
             store.update_repository(repository_id, last_pr_guardian=json.dumps(failure))
         except Exception:
             log.exception("Unable to persist the failed guardian run")

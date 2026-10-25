@@ -46,6 +46,41 @@ export type Repository = {
   job_id: string;
   logs?: { status: string; message: string; elapsed_seconds: number }[];
   warnings?: string[];
+  kind?: string;
+  github_installation_id?: number;
+};
+export type GuardianRun = {
+  id: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETE" | "ERROR";
+  pull_request?: number;
+  pr_url?: string;
+  head_sha?: string;
+  command?: string;
+  delivery_id?: string;
+  retry_of?: string;
+  created_at: string;
+  updated_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  failed_at?: string;
+  review_status?: string;
+  policy_status?: string;
+  comment_url?: string;
+  error?: string;
+};
+export type GitHubIntegration = {
+  status: "READY" | "NEEDS_SETUP";
+  authentication: "GITHUB_APP" | "TOKEN_FALLBACK" | "MISSING";
+  app_configured: boolean;
+  webhook_configured: boolean;
+  repository: {
+    github_repository: boolean;
+    bound: boolean;
+    installation_id?: number;
+  };
+  webhook_path: string;
+  setup_steps: string[];
+  runs: GuardianRun[];
 };
 export type ArchitectureViolation = {
   rule_id: string;
