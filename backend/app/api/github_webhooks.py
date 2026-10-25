@@ -2,6 +2,8 @@
 
 import json
 import re
+from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from rq import Queue
@@ -103,8 +105,28 @@ async def github_webhook(
             "delivery_id": x_github_delivery,
         }
     repository = binding["repository"]
+    created_at = datetime.now(UTC).isoformat()
+    head_sha = ((payload.get("pull_request") or {}).get("head") or {}).get("sha", "")
+    pull_request_number = ((payload.get("pull_request") or payload.get("issue") or {}).get("number") or 0)
+    run = None
     try:
-        head_sha = ((payload.get("pull_request") or {}).get("head") or {}).get("sha", "")
+        run = store.create_guardian_run(
+            {
+                "id": str(uuid4()),
+                "repository_id": repository["id"],
+                "status": "QUEUED",
+                "pull_request": pull_request_number,
+                "pr_url": pr_url,
+                "head_sha": head_sha,
+                "command": command,
+                "installation_id": installation_id,
+                "delivery_id": x_github_delivery,
+                "retry_of": "",
+                "created_at": created_at,
+                "updated_at": created_at,
+                "error": "",
+            }
+        )
         job = Queue("pull-requests", connection=redis_connection()).enqueue(
             review_pull_request,
             repository["id"],
@@ -113,17 +135,26 @@ async def github_webhook(
             x_github_delivery,
             command,
             head_sha,
+            run["id"],
             job_timeout=600,
             result_ttl=86400,
             failure_ttl=604800,
         )
     except Exception:
         redis_connection().delete(delivery_key)
+        if run:
+            store.update_guardian_run(
+                run["id"],
+                status="ERROR",
+                error="Could not queue the automatic review",
+                updated_at=datetime.now(UTC).isoformat(),
+            )
         raise
     return {
         "status": "queued",
         "command": command,
         "repository_id": repository["id"],
         "job_id": job.id,
+        "run_id": run["id"],
         "delivery_id": x_github_delivery,
     }

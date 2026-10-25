@@ -29,6 +29,7 @@ class Store:
     def __init__(self, policy):
         self.policy = policy
         self.updated = None
+        self.run_updates = []
 
     def repository(self, repository_id):
         return {
@@ -41,6 +42,9 @@ class Store:
 
     def update_repository(self, repository_id, **updates):
         self.updated = json.loads(updates["last_pr_guardian"])
+
+    def update_guardian_run(self, run_id, **updates):
+        self.run_updates.append((run_id, updates))
 
 
 def test_guardian_runs_pending_then_failure_for_policy(monkeypatch):
@@ -81,12 +85,13 @@ def test_guardian_runs_pending_then_failure_for_policy(monkeypatch):
     )
 
     result = pr_guardian.review_pull_request(
-        "repo-1", "https://github.com/acme/shop/pull/7", 42, "delivery-1", "impact"
+        "repo-1", "https://github.com/acme/shop/pull/7", 42, "delivery-1", "impact", run_id="run-1"
     )
     assert statuses == ["pending", "failure"]
     assert result["command"] == "impact"
     assert result["policy_status"] == "FAIL"
     assert store.updated["head_sha"] == "abc123"
+    assert [update[1]["status"] for update in store.run_updates] == ["RUNNING", "COMPLETE"]
 
 
 def test_guardian_reports_error_status_when_analysis_fails(monkeypatch):
@@ -115,10 +120,13 @@ def test_guardian_reports_error_status_when_analysis_fails(monkeypatch):
         lambda owner, repo, sha, state, description, token, target_url="": statuses.append(state),
     )
     with pytest.raises(RuntimeError, match="analysis failed"):
-        pr_guardian.review_pull_request("repo-1", "https://github.com/acme/shop/pull/7", 42)
+        pr_guardian.review_pull_request(
+            "repo-1", "https://github.com/acme/shop/pull/7", 42, run_id="run-2"
+        )
     assert statuses == ["pending", "error"]
     assert store.updated["status"] == "ERROR"
     assert store.updated["error"] == "analysis failed"
+    assert [update[1]["status"] for update in store.run_updates] == ["RUNNING", "ERROR"]
 
 
 def test_guardian_persists_installation_authentication_failure(monkeypatch):

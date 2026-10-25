@@ -22,6 +22,7 @@ class Redis:
 class Store:
     def __init__(self):
         self.updated = None
+        self.runs = []
 
     def github_repository(self, owner, name, installation_id):
         assert (owner, name, installation_id) == ("acme", "shop", 42)
@@ -29,6 +30,13 @@ class Store:
 
     def update_repository(self, repository_id, **updates):
         self.updated = (repository_id, updates)
+
+    def create_guardian_run(self, data):
+        self.runs.append(data)
+        return data
+
+    def update_guardian_run(self, run_id, **updates):
+        self.updated = (run_id, updates)
 
 
 def pull_request_payload():
@@ -75,7 +83,7 @@ def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
     assert first.status_code == 202
     assert first.json()["status"] == "queued"
     assert second.json()["status"] == "duplicate"
-    assert captured["args"] == (
+    assert captured["args"][:6] == (
         "repo-1",
         "https://github.com/acme/shop/pull/7",
         42,
@@ -83,6 +91,9 @@ def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
         "review",
         "abc123",
     )
+    assert captured["args"][6] == store.runs[0]["id"]
+    assert store.runs[0]["status"] == "QUEUED"
+    assert store.runs[0]["pr_url"] == "https://github.com/acme/shop/pull/7"
     assert store.updated is None
 
 

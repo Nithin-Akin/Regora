@@ -47,6 +47,8 @@ GitHub must reach the webhook over public HTTPS. For local testing, expose port 
 
 First index the same GitHub repository in Regora. The first valid webhook binds that indexed repository to the GitHub App installation.
 
+Open the repository workspace and select **Guardian**. The Integration Center reports authentication, signed webhook, and installation binding health without returning credentials to the browser. It also shows the 50 most recent reviews with their commit, command, result, GitHub comment, and failure message.
+
 Regora automatically reviews pull requests when they are opened, reopened, updated, or marked ready for review. Draft pull requests are skipped. Repository owners, members, and collaborators can also add one of these comments:
 
 ```text
@@ -55,7 +57,9 @@ Regora automatically reviews pull requests when they are opened, reopened, updat
 /regora explain
 ```
 
-Repeated updates edit the same Regora comment instead of adding new comments. GitHub delivery IDs are retained for 24 hours, so retried webhook deliveries do not create duplicate jobs. The latest completed run is also stored in the repository metadata returned by the Regora API.
+Repeated updates edit the same Regora comment instead of adding new comments. GitHub delivery IDs are retained for 24 hours, so retried webhook deliveries do not create duplicate jobs. Regora retains up to 200 Guardian run records per repository and returns the newest 50 in the Integration Center.
+
+Failed runs include a **Retry** action. A retry creates a linked attempt and uses the original trusted pull request URL, installation, command, and known commit. Repeated clicks reuse the same queued retry instead of creating concurrent jobs.
 
 Each review fetches GitHub's numeric pull-request ref into a bounded temporary workspace, evaluates the pull request's own `.regora.yml`, and deletes the workspace after analysis. The persistent indexed graph is never replaced by a pull request review. Regora parses source statically and does not execute pull request code.
 
