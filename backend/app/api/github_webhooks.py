@@ -11,7 +11,7 @@ from rq import Queue
 from app.graph.store import GraphStore, get_store
 from app.services.cache import redis_connection
 from app.services.github_app import verify_webhook_signature
-from app.services.pr_guardian import review_pull_request
+from app.services.pr_guardian import guardian_job_failure, review_pull_request
 from app.services.pull_requests import parse_pull_request_url
 
 router = APIRouter(prefix="/api/github")
@@ -142,6 +142,7 @@ async def github_webhook(
             job_timeout=600,
             result_ttl=86400,
             failure_ttl=604800,
+            on_failure=guardian_job_failure,
         )
     except Exception:
         redis_connection().delete(delivery_key)

@@ -113,6 +113,7 @@ def test_failed_review_retry_is_idempotently_enqueued(monkeypatch):
     assert second.json()["status"] == "duplicate"
     assert len(enqueued) == 1
     assert enqueued[0][1][-1] == "retry:failed-1"
+    assert enqueued[0][2]["on_failure"] is routes.guardian_job_failure
 
 
 def test_only_failed_reviews_can_be_retried():

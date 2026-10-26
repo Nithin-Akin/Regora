@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -245,3 +246,35 @@ def test_pull_request_head_introduced_policy_violation_fails(tmp_path, monkeypat
     assert report["summary"]["symbols_changed"] >= 1
     assert policy["status"] == "FAIL"
     assert policy["violations"][0]["rule_id"] == "api-data"
+
+
+def test_rq_failure_marks_active_guardian_run_failed(monkeypatch):
+    updates = []
+
+    class FailureStore:
+        def fail_guardian_run_if_active(self, run_id, error, failed_at):
+            updates.append((run_id, error, failed_at))
+
+    monkeypatch.setattr(pr_guardian, "get_store", lambda: FailureStore())
+    job = SimpleNamespace(args=("repo-1", "pr-url", 42, "delivery", "review", "sha", "run-1"))
+
+    pr_guardian.guardian_job_failure(job, None, TimeoutError, TimeoutError(), None)
+
+    assert updates[0][0] == "run-1"
+    assert updates[0][1] == "Worker stopped: TimeoutError. Retry the review."
+
+
+def test_terminated_pr_worker_marks_guardian_run_failed(monkeypatch):
+    updates = []
+
+    class FailureStore:
+        def fail_guardian_run_if_active(self, run_id, error, failed_at):
+            updates.append((run_id, error, failed_at))
+
+    monkeypatch.setattr(pr_guardian, "get_store", lambda: FailureStore())
+    job = SimpleNamespace(args=("repo-1", "pr-url", 42, "delivery", "review", "sha", "run-2"))
+
+    pr_guardian.guardian_work_horse_killed(job, 123, 9, None)
+
+    assert updates[0][0] == "run-2"
+    assert "terminated unexpectedly" in updates[0][1]

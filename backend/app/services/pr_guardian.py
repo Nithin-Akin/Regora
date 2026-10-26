@@ -28,6 +28,40 @@ def _update_run(store, run_id: str, **fields) -> None:
         store.update_guardian_run(run_id, updated_at=datetime.now(UTC).isoformat(), **fields)
 
 
+def _failed_job_run_id(job) -> str:
+    return job.args[6] if len(job.args) > 6 and isinstance(job.args[6], str) else ""
+
+
+def guardian_job_failure(job, connection, exc_type, exc_value, traceback):
+    """Persist RQ failures that happen outside the review function."""
+    run_id = _failed_job_run_id(job)
+    if not run_id:
+        return
+    try:
+        get_store().fail_guardian_run_if_active(
+            run_id,
+            f"Worker stopped: {exc_type.__name__}. Retry the review.",
+            datetime.now(UTC).isoformat(),
+        )
+    except Exception:
+        log.exception("Could not persist Guardian worker failure")
+
+
+def guardian_work_horse_killed(job, retpid, retval, rusage):
+    """Persist native crashes and forced termination of a PR work horse."""
+    run_id = _failed_job_run_id(job)
+    if not run_id:
+        return
+    try:
+        get_store().fail_guardian_run_if_active(
+            run_id,
+            "Pull request worker terminated unexpectedly. Retry the review.",
+            datetime.now(UTC).isoformat(),
+        )
+    except Exception:
+        log.exception("Could not persist terminated Guardian worker status")
+
+
 def analyze_pull_request_head(repository_id: str, repository: dict, payload: dict, token: str) -> tuple[dict, dict]:
     with tempfile.TemporaryDirectory(prefix="regora-pr-") as temporary:
         root = clone_github_pull(

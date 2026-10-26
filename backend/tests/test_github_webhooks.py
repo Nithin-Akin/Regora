@@ -92,6 +92,7 @@ def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
         "abc123",
     )
     assert captured["args"][6] == store.runs[0]["id"]
+    assert captured["kwargs"]["on_failure"] is github_webhooks.guardian_job_failure
     assert store.runs[0]["status"] == "QUEUED"
     assert store.runs[0]["pr_url"] == "https://github.com/acme/shop/pull/7"
     assert store.updated is None
