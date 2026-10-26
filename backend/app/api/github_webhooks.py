@@ -99,6 +99,9 @@ async def github_webhook(
             "AMBIGUOUS": "ambiguous_repository_binding",
             "CONFLICT": "repository_binding_conflict",
         }.get(binding["status"], "repository_binding_failed")
+        # GitHub redelivery reuses the delivery id. Let owners correct an
+        # indexing or binding problem and redeliver this exact event.
+        redis_connection().delete(delivery_key)
         return {
             "status": "ignored",
             "reason": reason,

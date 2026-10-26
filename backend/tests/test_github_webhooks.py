@@ -178,3 +178,48 @@ def test_ambiguous_repository_binding_is_reported_without_queueing(monkeypatch):
     assert response.status_code == 202
     assert response.json()["status"] == "ignored"
     assert response.json()["reason"] == "ambiguous_repository_binding"
+    assert "regora:github-delivery:delivery-ambiguous" not in cache.keys
+
+
+def test_binding_failure_allows_same_github_delivery_to_be_redelivered(monkeypatch):
+    cache = Redis()
+    store = Store()
+    attempts = 0
+
+    def github_repository(owner, name, installation_id):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return {"status": "NOT_FOUND", "repository": None}
+        return {"status": "BOUND", "repository": {"id": "repo-1", "github_installation_id": 42}}
+
+    class Queue:
+        def __init__(self, name, connection):
+            pass
+
+        def enqueue(self, function, *args, **kwargs):
+            return type("Job", (), {"id": "job-redelivery"})()
+
+    store.github_repository = github_repository
+    monkeypatch.setattr(github_webhooks, "verify_webhook_signature", lambda body, signature: None)
+    monkeypatch.setattr(github_webhooks, "redis_connection", lambda: cache)
+    monkeypatch.setattr(github_webhooks, "Queue", Queue)
+    app.dependency_overrides[get_store] = lambda: store
+    client = TestClient(app)
+    headers = {
+        "X-Hub-Signature-256": "signed",
+        "X-GitHub-Event": "pull_request",
+        "X-GitHub-Delivery": "delivery-redelivered",
+    }
+
+    first = client.post("/api/github/webhooks", json=pull_request_payload(), headers=headers)
+    second = client.post("/api/github/webhooks", json=pull_request_payload(), headers=headers)
+    app.dependency_overrides.clear()
+
+    assert first.json() == {
+        "status": "ignored",
+        "reason": "repository_not_indexed",
+        "delivery_id": "delivery-redelivered",
+    }
+    assert second.json()["status"] == "queued"
+    assert attempts == 2
