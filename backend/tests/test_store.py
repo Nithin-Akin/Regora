@@ -51,3 +51,14 @@ def test_github_repository_reports_cross_installation_claim_race():
     store, _ = graph_store([[], [{"repo": unbound}], [], []])
     result = store.github_repository("acme", "shop", 42)
     assert result == {"status": "CONFLICT", "repository": None}
+
+
+def test_guardian_worker_failure_only_updates_active_runs():
+    failed = {"id": "run-1", "status": "ERROR"}
+    store, calls = graph_store([[{"run": failed}]])
+
+    result = store.fail_guardian_run_if_active("run-1", "worker stopped", "2026-10-26T00:00:00Z")
+
+    assert result == failed
+    assert "g.status IN ['QUEUED', 'RUNNING']" in calls[0][0]
+    assert calls[0][1]["error"] == "worker stopped"

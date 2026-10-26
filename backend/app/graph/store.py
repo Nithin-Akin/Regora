@@ -166,6 +166,18 @@ class GraphStore:
             fields=fields,
         )
 
+    def fail_guardian_run_if_active(self, id: str, error: str, failed_at: str):
+        rows = self.query(
+            "MATCH (g:GuardianRun {id:$id}) "
+            "WHERE g.status IN ['QUEUED', 'RUNNING'] "
+            "SET g.status='ERROR', g.error=$error, g.failed_at=$failed_at, g.updated_at=$failed_at "
+            "RETURN properties(g) AS run",
+            id=id,
+            error=error,
+            failed_at=failed_at,
+        )
+        return rows[0]["run"] if rows else None
+
     def create_guardian_retry(self, source: dict, data: dict):
         """Atomically creates one retry for a failed run.
 

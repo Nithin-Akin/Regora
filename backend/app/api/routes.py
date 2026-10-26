@@ -25,7 +25,7 @@ from app.security.auth import CurrentUser, current_user
 from app.security.repositories import validate_github
 from app.services.architecture_policy import empty_policy
 from app.services.cache import intelligence, redis_connection, snapshot
-from app.services.pr_guardian import review_pull_request
+from app.services.pr_guardian import guardian_job_failure, review_pull_request
 from app.services.pull_requests import (
     GitHubPublishError,
     analyze_pull_request,
@@ -406,6 +406,7 @@ def retry_guardian_run(
             job_timeout=600,
             result_ttl=86400,
             failure_ttl=604800,
+            on_failure=guardian_job_failure,
         )
     except Exception:
         store.update_guardian_run(
