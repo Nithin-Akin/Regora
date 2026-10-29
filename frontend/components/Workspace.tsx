@@ -16,6 +16,7 @@ import {
   Folder,
   GitBranch,
   GitPullRequest,
+  GitCompareArrows,
   Layers,
   LoaderCircle,
   MessageSquare,
@@ -40,6 +41,7 @@ import SourceViewer from "./SourceViewer";
 import ThemeToggle from "./ThemeToggle";
 import AccountMenu from "./AccountMenu";
 import GitHubIntegration from "./GitHubIntegration";
+import VersionChanges from "./VersionChanges";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import {
   buildPullRequestImpactMarkdown,
@@ -109,7 +111,7 @@ export default function Workspace({
     incoming: [],
     outgoing: [],
   });
-  const [view, setView] = useState<"architecture" | "symbols" | "overview" | "integration">(
+  const [view, setView] = useState<"architecture" | "symbols" | "overview" | "changes" | "integration">(
     "architecture",
   );
   const [right, setRight] = useState<
@@ -265,13 +267,13 @@ export default function Workspace({
     },
     [base, fail],
   );
-  async function loadView(next: "architecture" | "symbols" | "overview" | "integration") {
+  async function loadView(next: "architecture" | "symbols" | "overview" | "changes" | "integration") {
     setView(next);
     setNodeType("");
     setRelationship("");
     setHighlights([]);
     setSelected(null);
-    if (next === "integration") return;
+    if (next === "integration" || next === "changes") return;
     if (next === "overview") {
       try {
         setOverview(await api<Overview>(base + "/overview"));
@@ -1051,6 +1053,13 @@ export default function Workspace({
               Overview
             </button>
             <button
+              className={view === "changes" ? "active" : ""}
+              onClick={() => void loadView("changes")}
+            >
+              <GitCompareArrows size={15} />
+              Changes
+            </button>
+            <button
               className={view === "integration" ? "active" : ""}
               onClick={() => void loadView("integration")}
             >
@@ -1078,7 +1087,9 @@ export default function Workspace({
               </button>
             )}
           </div>
-          {view === "integration" ? (
+          {view === "changes" ? (
+            <VersionChanges base={base} />
+          ) : view === "integration" ? (
             <GitHubIntegration base={base} />
           ) : view !== "overview" ? (
             <>

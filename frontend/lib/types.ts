@@ -80,7 +80,75 @@ export type GitHubIntegration = {
   };
   webhook_path: string;
   setup_steps: string[];
+  sync: {
+    status: string;
+    progress: number;
+    message: string;
+    error: string;
+    indexed_sha: string;
+    latest_github_sha: string;
+    default_branch: string;
+    last_synced_at: string;
+    updated_at: string;
+  };
   runs: GuardianRun[];
+};
+export type GraphVersion = {
+  id: string;
+  commit_sha: string;
+  fingerprint: string;
+  nodes: number;
+  relationships: number;
+  created_at: string;
+  trigger: "index" | "push";
+  format: string;
+  current: boolean;
+};
+export type VersionHistory = {
+  repository_id: string;
+  indexed_sha: string;
+  versions: GraphVersion[];
+};
+export type GraphDiffEvidence = {
+  change: "added" | "removed" | "modified";
+  id: string;
+  name?: string;
+  type: string;
+  qualified_name?: string;
+  file_path?: string;
+  start_line?: number;
+  end_line?: number;
+  signature?: string;
+  source_name?: string;
+  target_name?: string;
+  source_file?: string;
+  source_line?: number;
+  resolution?: string;
+  changed_fields?: string[];
+};
+export type GraphDiff = {
+  repository_id: string;
+  base: GraphVersion;
+  head: GraphVersion;
+  summary: {
+    symbols: { added: number; removed: number; modified: number };
+    relationships: { added: number; removed: number; modified: number };
+    affected_files: number;
+    affected_modules: number;
+    affected_endpoints: number;
+    affected_database_entities: number;
+  };
+  risk: { score: number; level: "LOW" | "MEDIUM" | "HIGH" };
+  affected: {
+    files: string[];
+    modules: string[];
+    endpoints: string[];
+    database_entities: string[];
+  };
+  symbols: GraphDiffEvidence[];
+  relationships: GraphDiffEvidence[];
+  truncated: boolean;
+  limitations: string;
 };
 export type ArchitectureViolation = {
   rule_id: string;
