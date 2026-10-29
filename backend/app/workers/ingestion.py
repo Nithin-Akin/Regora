@@ -129,6 +129,14 @@ def ingest(repository_id, kind, source, background_sync=False):
         graph_intelligence = Intelligence(graph)
         overview = graph_intelligence.overview()
         architecture_policy = load_architecture_policy(root, graph_intelligence)
+        if revision:
+            store.save_graph_snapshot(
+                repository_id,
+                revision,
+                graph,
+                now(),
+                "push" if background_sync else "index",
+            )
         store.update_repository(
             repository_id,
             overview=json.dumps(overview),

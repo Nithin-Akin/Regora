@@ -1,4 +1,5 @@
 from app.graph.store import GraphStore
+from app.models.schema import CodeGraph, CodeNode
 
 
 def graph_store(responses):
@@ -73,3 +74,27 @@ def test_sync_worker_failure_preserves_ready_repository():
     assert result == repository
     assert "r.sync_status IN" in calls[0][0]
     assert "r.status" not in calls[0][0]
+
+
+def test_graph_snapshot_is_idempotent_and_history_is_bounded():
+    graph = CodeGraph(
+        nodes=[CodeNode(id="node-1", name="one", type="Function", repository_id="repo-1")],
+        fingerprint="fingerprint-1",
+    )
+    saved = {
+        "id": "snapshot-1",
+        "repository_id": "repo-1",
+        "commit_sha": "a" * 40,
+        "nodes": 1,
+        "relationships": 0,
+    }
+    store, calls = graph_store([[{"snapshot": saved}], []])
+
+    result = store.save_graph_snapshot("repo-1", "a" * 40, graph, "2026-10-29T00:00:00Z", "push")
+
+    assert result == saved
+    assert "MERGE (s:GraphSnapshot" in calls[0][0]
+    assert calls[0][1]["data"]["commit_sha"] == "a" * 40
+    assert calls[0][1]["data"]["format"] == "zlib-json-v1"
+    assert "SKIP $keep" in calls[1][0]
+    assert calls[1][1]["keep"] == 20

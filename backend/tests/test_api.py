@@ -53,6 +53,21 @@ class FakeStore:
             else None
         )
 
+    def graph_snapshots(self, repository_id, limit=20):
+        return [
+            {
+                "id": "snapshot-1",
+                "repository_id": repository_id,
+                "commit_sha": "a" * 40,
+                "fingerprint": "fingerprint-1",
+                "nodes": 10,
+                "relationships": 20,
+                "created_at": "2026-10-29T00:00:00Z",
+                "trigger": "push",
+                "format": "zlib-json-v1",
+            }
+        ][:limit]
+
 
 @pytest.fixture
 def client(demo_intelligence):
@@ -73,6 +88,16 @@ def test_repository_access_is_scoped_to_owner(client):
     app.dependency_overrides[current_user] = lambda: CurrentUser("github:99")
     assert client.get("/api/repositories").json() == []
     assert client.get("/api/repositories/r/status").status_code == 404
+    assert client.get("/api/repositories/r/versions").status_code == 404
+
+
+def test_repository_versions_return_metadata_without_graph_payload(client):
+    response = client.get("/api/repositories/r/versions")
+    assert response.status_code == 200
+    version = response.json()["versions"][0]
+    assert version["commit_sha"] == "a" * 40
+    assert version["nodes"] == 10
+    assert "payload" not in version
 
 
 def test_invalid_github_is_rejected_before_queue(client):

@@ -95,6 +95,14 @@ def public_guardian_run(run):
     }
 
 
+def public_graph_snapshot(snapshot, indexed_sha=""):
+    return {
+        key: value
+        for key, value in snapshot.items()
+        if key in {"id", "commit_sha", "fingerprint", "nodes", "relationships", "created_at", "trigger", "format"}
+    } | {"current": snapshot.get("commit_sha") == indexed_sha}
+
+
 def enqueue(kind, source, name, store, owner_id, github_token="", id=None):
     id = id or str(uuid4())
     redis_connection().ping()
@@ -360,6 +368,23 @@ def github_integration(
             "updated_at": repo.get("sync_updated_at", ""),
         },
         "runs": [public_guardian_run(run) for run in store.guardian_runs(id, 50)],
+    }
+
+
+@router.get("/repositories/{id}/versions")
+def repository_versions(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    return {
+        "repository_id": id,
+        "indexed_sha": repo.get("indexed_sha", ""),
+        "versions": [
+            public_graph_snapshot(snapshot, repo.get("indexed_sha", ""))
+            for snapshot in store.graph_snapshots(id, 20)
+        ],
     }
 
 

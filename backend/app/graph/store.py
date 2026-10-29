@@ -3,10 +3,13 @@
 import json
 from collections import defaultdict
 from functools import lru_cache
+from hashlib import sha256
 
 from neo4j import GraphDatabase
 
 from app.config import settings
+from app.graph.snapshots import FORMAT as SNAPSHOT_FORMAT
+from app.graph.snapshots import decode_graph_snapshot, encode_graph_snapshot
 from app.models.schema import CodeEdge, CodeGraph, CodeNode
 from app.parsers.pipeline import RELATIONS
 
@@ -25,9 +28,13 @@ class GraphStore:
         self.query("CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (r:RepositoryMeta) REQUIRE r.id IS UNIQUE")
         self.query("CREATE CONSTRAINT chat_id IF NOT EXISTS FOR (c:ChatSession) REQUIRE c.id IS UNIQUE")
         self.query("CREATE CONSTRAINT guardian_run_id IF NOT EXISTS FOR (g:GuardianRun) REQUIRE g.id IS UNIQUE")
+        self.query("CREATE CONSTRAINT graph_snapshot_id IF NOT EXISTS FOR (s:GraphSnapshot) REQUIRE s.id IS UNIQUE")
         self.query("CREATE INDEX code_repository IF NOT EXISTS FOR (n:CodeNode) ON (n.repository_id)")
         self.query(
             "CREATE INDEX guardian_run_repository IF NOT EXISTS FOR (g:GuardianRun) ON (g.repository_id)"
+        )
+        self.query(
+            "CREATE INDEX graph_snapshot_repository IF NOT EXISTS FOR (s:GraphSnapshot) ON (s.repository_id)"
         )
         self.query(
             "CREATE VECTOR INDEX code_embeddings IF NOT EXISTS FOR (n:CodeNode) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: $dimensions, `vector.similarity_function`: 'cosine'}}",
@@ -242,6 +249,57 @@ class GraphStore:
         )
         return CodeGraph(nodes=[CodeNode(**n["node"]) for n in nodes], edges=[CodeEdge(**e["edge"]) for e in edges])
 
+    def save_graph_snapshot(self, repository_id: str, commit_sha: str, graph: CodeGraph, created_at: str, trigger: str):
+        snapshot_id = sha256(f"{repository_id}:{commit_sha}".encode()).hexdigest()[:32]
+        data = {
+            "id": snapshot_id,
+            "repository_id": repository_id,
+            "commit_sha": commit_sha,
+            "fingerprint": graph.fingerprint,
+            "nodes": len(graph.nodes),
+            "relationships": len(graph.edges),
+            "created_at": created_at,
+            "trigger": trigger,
+            "format": SNAPSHOT_FORMAT,
+            "payload": encode_graph_snapshot(graph),
+        }
+        rows = self.query(
+            "MERGE (s:GraphSnapshot {id:$id}) SET s += $data RETURN properties(s) AS snapshot",
+            id=snapshot_id,
+            data=data,
+        )
+        self.query(
+            "MATCH (s:GraphSnapshot {repository_id:$repository_id}) "
+            "WITH s ORDER BY s.created_at DESC SKIP $keep DETACH DELETE s",
+            repository_id=repository_id,
+            keep=20,
+        )
+        return rows[0]["snapshot"]
+
+    def graph_snapshots(self, repository_id: str, limit: int = 20):
+        return [
+            row["snapshot"]
+            for row in self.query(
+                "MATCH (s:GraphSnapshot {repository_id:$repository_id}) "
+                "RETURN s {.*, payload: null} AS snapshot ORDER BY s.created_at DESC LIMIT $limit",
+                repository_id=repository_id,
+                limit=limit,
+            )
+        ]
+
+    def graph_snapshot(self, repository_id: str, commit_sha: str):
+        rows = self.query(
+            "MATCH (s:GraphSnapshot {repository_id:$repository_id, commit_sha:$commit_sha}) "
+            "RETURN properties(s) AS snapshot",
+            repository_id=repository_id,
+            commit_sha=commit_sha,
+        )
+        if not rows:
+            return None
+        snapshot = rows[0]["snapshot"]
+        snapshot["graph"] = decode_graph_snapshot(snapshot.pop("payload"))
+        return snapshot
+
     def update_embeddings(self, rows):
         for i in range(0, len(rows), 100):
             self.query(
@@ -264,6 +322,7 @@ class GraphStore:
             "MATCH (n) WHERE (n:CodeNode AND n.repository_id=$id) "
             "OR (n:RepositoryMeta AND n.id=$id) "
             "OR (n:ChatSession AND n.repository_id=$id) "
+            "OR (n:GraphSnapshot AND n.repository_id=$id) "
             "OR (n:GuardianRun AND n.repository_id=$id) DETACH DELETE n",
             id=id,
         )
