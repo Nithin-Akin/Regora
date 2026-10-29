@@ -12,6 +12,7 @@ from rq import Queue
 
 from app.agents.reasoning import RepoAgent
 from app.config import settings
+from app.graph.diff import compare_graphs
 from app.graph.store import GraphStore, get_store
 from app.models.schema import (
     AskRequest,
@@ -385,6 +386,30 @@ def repository_versions(
             public_graph_snapshot(snapshot, repo.get("indexed_sha", ""))
             for snapshot in store.graph_snapshots(id, 20)
         ],
+    }
+
+
+@router.get("/repositories/{id}/versions/compare")
+def compare_repository_versions(
+    id: str,
+    base_sha: str = Query(pattern=r"^[0-9a-fA-F]{40,64}$"),
+    head_sha: str = Query(pattern=r"^[0-9a-fA-F]{40,64}$"),
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    if base_sha == head_sha:
+        raise HTTPException(422, "Choose two different repository versions")
+    base = store.graph_snapshot(id, base_sha)
+    head = store.graph_snapshot(id, head_sha)
+    missing = [sha for sha, snapshot in ((base_sha, base), (head_sha, head)) if snapshot is None]
+    if missing:
+        raise HTTPException(404, {"message": "Graph snapshot not found", "commits": missing})
+    return {
+        "repository_id": id,
+        "base": public_graph_snapshot(base, repo.get("indexed_sha", "")),
+        "head": public_graph_snapshot(head, repo.get("indexed_sha", "")),
+        **compare_graphs(base["graph"], head["graph"]),
     }
 
 

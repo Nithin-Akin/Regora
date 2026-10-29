@@ -7,7 +7,7 @@ import app.api.routes as routes
 from app.api.routes import ready
 from app.graph.store import get_store
 from app.main import app
-from app.models.schema import Answer
+from app.models.schema import Answer, CodeGraph, CodeNode
 from app.security.auth import CurrentUser, current_user
 
 
@@ -68,6 +68,25 @@ class FakeStore:
             }
         ][:limit]
 
+    def graph_snapshot(self, repository_id, commit_sha):
+        if commit_sha not in {"a" * 40, "b" * 40}:
+            return None
+        return {
+            **self.graph_snapshots(repository_id)[0],
+            "commit_sha": commit_sha,
+            "graph": CodeGraph(
+                nodes=[
+                    CodeNode(
+                        id="symbol",
+                        name="symbol",
+                        type="Function",
+                        repository_id=repository_id,
+                        hash="old" if commit_sha.startswith("a") else "new",
+                    )
+                ]
+            ),
+        }
+
 
 @pytest.fixture
 def client(demo_intelligence):
@@ -98,6 +117,33 @@ def test_repository_versions_return_metadata_without_graph_payload(client):
     assert version["commit_sha"] == "a" * 40
     assert version["nodes"] == 10
     assert "payload" not in version
+
+
+def test_repository_versions_can_be_compared(client):
+    response = client.get(
+        "/api/repositories/r/versions/compare",
+        params={"base_sha": "a" * 40, "head_sha": "b" * 40},
+    )
+    assert response.status_code == 200
+    assert response.json()["summary"]["symbols"]["modified"] == 1
+    assert "graph" not in response.json()["base"]
+
+
+def test_repository_version_comparison_validates_commits(client):
+    assert (
+        client.get(
+            "/api/repositories/r/versions/compare",
+            params={"base_sha": "bad", "head_sha": "b" * 40},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get(
+            "/api/repositories/r/versions/compare",
+            params={"base_sha": "c" * 40, "head_sha": "b" * 40},
+        ).status_code
+        == 404
+    )
 
 
 def test_invalid_github_is_rejected_before_queue(client):
