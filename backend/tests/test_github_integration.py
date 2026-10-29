@@ -79,6 +79,7 @@ def test_integration_health_and_history_are_owner_scoped(monkeypatch):
         "installation_id": 42,
     }
     assert result["runs"][0]["error"] == "analysis failed"
+    assert result["sync"]["status"] == "NOT_SYNCED"
     assert "github_app_private_key" not in str(result)
 
     app.dependency_overrides[current_user] = lambda: CurrentUser("github:other")

@@ -13,6 +13,7 @@ from app.services.cache import redis_connection
 from app.services.github_app import verify_webhook_signature
 from app.services.pr_guardian import guardian_job_failure, review_pull_request
 from app.services.pull_requests import parse_pull_request_url
+from app.services.repository_sync import sync_github_repository, sync_job_failure
 
 router = APIRouter(prefix="/api/github")
 PR_ACTIONS = {"opened", "reopened", "synchronize", "ready_for_review"}
@@ -39,6 +40,17 @@ def selected_pull_request(event: str, payload: dict) -> tuple[str, str] | None:
             return None
         return issue["pull_request"].get("html_url", ""), match.group(1).lower()
     return None
+
+
+def selected_push_sha(event: str, payload: dict) -> str | None:
+    if event != "push" or payload.get("deleted"):
+        return None
+    repository = payload.get("repository") or {}
+    default_branch = repository.get("default_branch", "")
+    if not default_branch or payload.get("ref") != f"refs/heads/{default_branch}":
+        return None
+    revision = (payload.get("after") or "").lower()
+    return revision if re.fullmatch(r"[0-9a-f]{40,64}", revision) else None
 
 
 @router.post("/webhooks", status_code=202)
@@ -73,21 +85,23 @@ async def github_webhook(
         raise HTTPException(400, "Invalid GitHub webhook JSON") from exc
     if x_github_event == "ping":
         return {"status": "pong", "delivery_id": x_github_delivery}
+    push_sha = selected_push_sha(x_github_event, payload)
     selected = selected_pull_request(x_github_event, payload)
-    if not selected:
+    if not push_sha and not selected:
         return {"status": "ignored", "delivery_id": x_github_delivery}
-    pr_url, command = selected
     full_name = (payload.get("repository") or {}).get("full_name", "")
     installation_id = (payload.get("installation") or {}).get("id")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", full_name) or not isinstance(installation_id, int):
         raise HTTPException(422, "GitHub webhook is missing repository installation data")
     owner, name = full_name.split("/", 1)
-    try:
-        pr_owner, pr_name, _ = parse_pull_request_url(pr_url)
-    except ValueError as exc:
-        raise HTTPException(422, "GitHub webhook contains an invalid pull request URL") from exc
-    if (pr_owner.lower(), pr_name.lower()) != (owner.lower(), name.lower()):
-        raise HTTPException(422, "Pull request does not belong to the webhook repository")
+    if selected:
+        pr_url, command = selected
+        try:
+            pr_owner, pr_name, _ = parse_pull_request_url(pr_url)
+        except ValueError as exc:
+            raise HTTPException(422, "GitHub webhook contains an invalid pull request URL") from exc
+        if (pr_owner.lower(), pr_name.lower()) != (owner.lower(), name.lower()):
+            raise HTTPException(422, "Pull request does not belong to the webhook repository")
     try:
         binding = store.github_repository(owner, name, installation_id)
     except Exception:
@@ -109,6 +123,48 @@ async def github_webhook(
         }
     repository = binding["repository"]
     created_at = datetime.now(UTC).isoformat()
+    if push_sha:
+        try:
+            store.update_repository(
+                repository["id"],
+                latest_github_sha=push_sha,
+                github_default_branch=(payload.get("repository") or {}).get("default_branch", ""),
+                sync_status="QUEUED",
+                sync_progress=0,
+                sync_message="Waiting to synchronize the latest push",
+                sync_error="",
+                sync_updated_at=created_at,
+            )
+            job = Queue("sync", connection=redis_connection()).enqueue(
+                sync_github_repository,
+                repository["id"],
+                installation_id,
+                push_sha,
+                job_timeout=1800,
+                result_ttl=86400,
+                failure_ttl=604800,
+                on_failure=sync_job_failure,
+            )
+        except Exception:
+            redis_connection().delete(delivery_key)
+            store.update_repository(
+                repository["id"],
+                sync_status="ERROR",
+                sync_message="Could not queue synchronization",
+                sync_error="Could not queue synchronization",
+                sync_updated_at=datetime.now(UTC).isoformat(),
+            )
+            raise
+        return {
+            "status": "queued",
+            "kind": "repository_sync",
+            "repository_id": repository["id"],
+            "head_sha": push_sha,
+            "job_id": job.id,
+            "delivery_id": x_github_delivery,
+        }
+
+    pr_url, command = selected
     head_sha = ((payload.get("pull_request") or {}).get("head") or {}).get("sha", "")
     pull_request_number = ((payload.get("pull_request") or payload.get("issue") or {}).get("number") or 0)
     run = None

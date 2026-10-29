@@ -52,6 +52,17 @@ def pull_request_payload():
     }
 
 
+def push_payload(ref="refs/heads/main", revision="a" * 40):
+    return {
+        "ref": ref,
+        "before": "b" * 40,
+        "after": revision,
+        "deleted": False,
+        "repository": {"full_name": "acme/shop", "default_branch": "main"},
+        "installation": {"id": 42},
+    }
+
+
 def test_pull_request_event_is_deduplicated_and_queued(monkeypatch):
     cache = Redis()
     store = Store()
@@ -110,6 +121,61 @@ def test_only_trusted_pull_request_commands_are_selected():
     )
     payload["comment"]["author_association"] = "NONE"
     assert github_webhooks.selected_pull_request("issue_comment", payload) is None
+
+
+def test_default_branch_push_queues_repository_sync(monkeypatch):
+    cache = Redis()
+    store = Store()
+    captured = {}
+
+    class Queue:
+        def __init__(self, name, connection):
+            assert name == "sync"
+            assert connection is cache
+
+        def enqueue(self, function, *args, **kwargs):
+            captured.update(function=function, args=args, kwargs=kwargs)
+            return type("Job", (), {"id": "sync-job-1"})()
+
+    monkeypatch.setattr(github_webhooks, "verify_webhook_signature", lambda body, signature: None)
+    monkeypatch.setattr(github_webhooks, "redis_connection", lambda: cache)
+    monkeypatch.setattr(github_webhooks, "Queue", Queue)
+    app.dependency_overrides[get_store] = lambda: store
+    response = TestClient(app).post(
+        "/api/github/webhooks",
+        json=push_payload(),
+        headers={
+            "X-Hub-Signature-256": "signed",
+            "X-GitHub-Event": "push",
+            "X-GitHub-Delivery": "push-delivery-1",
+        },
+    )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    assert response.json()["kind"] == "repository_sync"
+    assert captured["function"] is github_webhooks.sync_github_repository
+    assert captured["args"] == ("repo-1", 42, "a" * 40)
+    assert captured["kwargs"]["on_failure"] is github_webhooks.sync_job_failure
+    assert store.updated[1]["sync_status"] == "QUEUED"
+    assert store.updated[1]["latest_github_sha"] == "a" * 40
+
+
+def test_non_default_branch_push_is_ignored(monkeypatch):
+    cache = Redis()
+    monkeypatch.setattr(github_webhooks, "verify_webhook_signature", lambda body, signature: None)
+    monkeypatch.setattr(github_webhooks, "redis_connection", lambda: cache)
+    response = TestClient(app).post(
+        "/api/github/webhooks",
+        json=push_payload(ref="refs/heads/feature"),
+        headers={
+            "X-Hub-Signature-256": "signed",
+            "X-GitHub-Event": "push",
+            "X-GitHub-Delivery": "push-delivery-feature",
+        },
+    )
+    assert response.status_code == 202
+    assert response.json()["status"] == "ignored"
 
 
 def test_invalid_webhook_signature_is_rejected(monkeypatch):
