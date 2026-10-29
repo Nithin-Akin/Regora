@@ -93,6 +93,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, preview and publish an updatable GitHub comment, or download the full grounded Markdown review.
 - **Continuous PR Guardian:** install the GitHub App to review every pull request update, enforce `.regora.yml` through a commit status, and rerun reviews with trusted `/regora` commands. See [the setup guide](docs/GITHUB_PR_GUARDIAN.md).
 - **Continuous repository sync:** signed default-branch push events refresh the indexed graph with a GitHub App installation token, coalesce superseded commits, and keep the previous complete graph readable until the replacement is ready.
+- **Versioned graph history:** every successful GitHub index stores an embedding-free graph snapshot for its commit. Regora keeps the latest 20 versions per repository so later comparisons have stable evidence without duplicating vector data.
 - **GitHub Integration Center:** check App, webhook, and repository binding health, inspect recent Guardian runs, open published reviews, and safely retry failed analysis from the workspace.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 - **MCP server:** use Regora's read-only search, symbol, dependency-path, and change-impact tools from Codex, Cursor, Claude Code, and other MCP clients. See [the setup guide](docs/MCP.md).
@@ -191,7 +192,8 @@ Recognized framework patterns include FastAPI and Flask decorators, simple Djang
 3. The worker clones or extracts, scans supported sources, detects languages, parses symbols, and resolves dependencies.
 4. Neo4j graph replacement happens transactionally. A vector index and uniqueness constraints are initialized automatically.
 5. Symbol-level embeddings are generated in batches and stored on Neo4j nodes.
-6. Architecture metrics and a cited factual overview are calculated. Status becomes `READY`. A separate architecture worker then generates the AI explanation, so slow CPU inference never delays access to the indexed graph. Reopen Overview to retrieve the latest explanation.
+6. Architecture metrics and a cited factual overview are calculated. GitHub repositories also persist a compressed graph snapshot keyed by commit SHA, with a bounded 20-version history.
+7. Status becomes `READY`. A separate architecture worker then generates the AI explanation, so slow CPU inference never delays access to the indexed graph. Reopen Overview to retrieve the latest explanation.
 
 Persistent stages are `QUEUED`, `CLONING`, `SCANNING`, `PARSING`, `BUILDING_GRAPH`, `EMBEDDING`, `ANALYZING`, `READY`, and `FAILED`. Logs include repository/job IDs, elapsed seconds, and meaningful messages. Failures and worker timeouts persist an actionable status.
 
