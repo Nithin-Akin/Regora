@@ -41,6 +41,20 @@ class GraphStore:
     def update_repository(self, id, **fields):
         self.query("MATCH (r:RepositoryMeta {id:$id}) SET r += $fields", id=id, fields=fields)
 
+    def fail_sync_if_active(self, id: str, error: str, failed_at: str):
+        rows = self.query(
+            "MATCH (r:RepositoryMeta {id:$id}) "
+            "WHERE r.sync_status IN ['QUEUED', 'CLONING', 'SCANNING', 'PARSING', "
+            "'BUILDING_GRAPH', 'EMBEDDING', 'ANALYZING'] "
+            "SET r.sync_status='ERROR', r.sync_error=$error, r.sync_message='Synchronization failed', "
+            "r.sync_updated_at=$failed_at "
+            "RETURN properties(r) AS repo",
+            id=id,
+            error=error,
+            failed_at=failed_at,
+        )
+        return rows[0]["repo"] if rows else None
+
     def repository(self, id, owner_id=None):
         ownership = (
             " AND (r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL))"

@@ -348,6 +348,17 @@ def github_integration(
         },
         "webhook_path": "/api/github/webhooks",
         "setup_steps": steps,
+        "sync": {
+            "status": repo.get("sync_status", "NOT_SYNCED"),
+            "progress": repo.get("sync_progress", 0),
+            "message": repo.get("sync_message", ""),
+            "error": repo.get("sync_error", ""),
+            "indexed_sha": repo.get("indexed_sha", ""),
+            "latest_github_sha": repo.get("latest_github_sha", ""),
+            "default_branch": repo.get("github_default_branch", ""),
+            "last_synced_at": repo.get("last_synced_at", ""),
+            "updated_at": repo.get("sync_updated_at", ""),
+        },
         "runs": [public_guardian_run(run) for run in store.guardian_runs(id, 50)],
     }
 

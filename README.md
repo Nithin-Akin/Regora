@@ -92,6 +92,7 @@ Actual screenshots from the running demo. Normal browser tests write ignored art
 - **Impact:** select a function, method, class, file, or endpoint and click **Analyze Impact**. Read the score breakdown and highlight important paths.
 - **PR Review Agent:** paste a GitHub pull request URL from an indexed repository to map changed lines to symbols, inspect their static blast radius, find connected tests and coverage gaps, preview and publish an updatable GitHub comment, or download the full grounded Markdown review.
 - **Continuous PR Guardian:** install the GitHub App to review every pull request update, enforce `.regora.yml` through a commit status, and rerun reviews with trusted `/regora` commands. See [the setup guide](docs/GITHUB_PR_GUARDIAN.md).
+- **Continuous repository sync:** signed default-branch push events refresh the indexed graph with a GitHub App installation token, coalesce superseded commits, and keep the previous complete graph readable until the replacement is ready.
 - **GitHub Integration Center:** check App, webhook, and repository binding health, inspect recent Guardian runs, open published reviews, and safely retry failed analysis from the workspace.
 - **Streaming assistant:** see retrieval and reasoning stages immediately, then read the grounded response as it streams after evidence validation.
 - **MCP server:** use Regora's read-only search, symbol, dependency-path, and change-impact tools from Codex, Cursor, Claude Code, and other MCP clients. See [the setup guide](docs/MCP.md).

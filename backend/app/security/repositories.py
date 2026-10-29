@@ -50,6 +50,25 @@ def validate_github(url: str) -> str:
     return url.rstrip("/")
 
 
+def git_revision(root: Path) -> str:
+    """Return the checked-out Git revision without executing repository code."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null", "rev-parse", "HEAD"],
+            env=github_clone_environment(""),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise ValueError("Could not determine the indexed Git commit") from exc
+    revision = result.stdout.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40,64}", revision):
+        raise ValueError("The repository returned an invalid Git commit")
+    return revision
+
+
 def extract_zip(archive: Path, destination: Path):
     cfg = settings()
     if archive.stat().st_size > cfg.max_archive_mb * 1024**2:

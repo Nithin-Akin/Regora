@@ -62,3 +62,14 @@ def test_guardian_worker_failure_only_updates_active_runs():
     assert result == failed
     assert "g.status IN ['QUEUED', 'RUNNING']" in calls[0][0]
     assert calls[0][1]["error"] == "worker stopped"
+
+
+def test_sync_worker_failure_preserves_ready_repository():
+    repository = {"id": "repo-1", "status": "READY", "sync_status": "ERROR"}
+    store, calls = graph_store([[{"repo": repository}]])
+
+    result = store.fail_sync_if_active("repo-1", "worker stopped", "2026-10-29T00:00:00Z")
+
+    assert result == repository
+    assert "r.sync_status IN" in calls[0][0]
+    assert "r.status" not in calls[0][0]

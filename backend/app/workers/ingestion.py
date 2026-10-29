@@ -8,7 +8,7 @@ from rq import get_current_job
 from app.config import settings
 from app.graph.store import get_store
 from app.graph.intelligence import Intelligence
-from app.security.repositories import extract_zip, clone_github, scan_files
+from app.security.repositories import clone_github, extract_zip, git_revision, scan_files
 from app.parsers.pipeline import analyze_repository
 from app.embeddings.providers import embed_graph
 from app.services.architecture_policy import load_architecture_policy
@@ -20,7 +20,7 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def ingest(repository_id, kind, source):
+def ingest(repository_id, kind, source, background_sync=False):
     # RQ forks per job; never reuse a Neo4j connection inherited from its parent.
     get_store.cache_clear()
     store = get_store()
@@ -39,14 +39,23 @@ def ingest(repository_id, kind, source):
             "timestamp": now(),
         }
         events.append(event)
-        store.update_repository(
-            repository_id,
-            status=status,
-            progress=progress,
-            message=message,
-            logs=json.dumps(events[-100:]),
-            updated_at=now(),
+        fields = (
+            {
+                "sync_status": status,
+                "sync_progress": progress,
+                "sync_message": message,
+                "sync_logs": json.dumps(events[-100:]),
+                "sync_updated_at": now(),
+            }
+            if background_sync
+            else {
+                "status": status,
+                "progress": progress,
+                "message": message,
+                "logs": json.dumps(events[-100:]),
+            }
         )
+        store.update_repository(repository_id, updated_at=now(), **fields)
         job = get_current_job()
         if job:
             job.meta.update(event)
@@ -80,6 +89,7 @@ def ingest(repository_id, kind, source):
         else:
             shutil.copytree(settings().demo_dir, destination)
             root = destination
+        revision = git_revision(root) if kind == "github" else ""
         stage("SCANNING", 15, "Scanning files and detecting languages")
         files = scan_files(root)
         languages = sorted({p.suffix for p in files})
@@ -99,8 +109,6 @@ def ingest(repository_id, kind, source):
             else None
         )
         embedding_cache = {n.id: (n.hash, n.embedding) for n in previous.nodes if n.embedding} if previous else {}
-        store.save_graph(repository_id, graph)
-        store.update_repository(repository_id, fingerprint=graph.fingerprint, warnings=json.dumps(graph.warnings))
         stage("EMBEDDING", 65, "Generating semantic embeddings (first run downloads the local model)")
         rows = embed_graph(
             graph,
@@ -109,7 +117,14 @@ def ingest(repository_id, kind, source):
             ),
             embedding_cache,
         )
-        store.update_embeddings(rows)
+        embeddings = {row["id"]: row["embedding"] for row in rows}
+        for node in graph.nodes:
+            if node.id in embeddings:
+                node.embedding = embeddings[node.id]
+        # Replace the graph only after parsing and embeddings both succeed.
+        # Readers keep the previous complete graph throughout a background sync.
+        store.save_graph(repository_id, graph)
+        store.update_repository(repository_id, fingerprint=graph.fingerprint, warnings=json.dumps(graph.warnings))
         stage("ANALYZING", 92, "Analyzing architecture, quality gates, dependency hubs, and cycles")
         graph_intelligence = Intelligence(graph)
         overview = graph_intelligence.overview()
@@ -120,6 +135,17 @@ def ingest(repository_id, kind, source):
             architecture_policy=json.dumps(architecture_policy),
             embedding_model=settings().embedding_model,
             embedding_provider=settings().embedding_provider,
+            **(
+                {
+                    "indexed_sha": revision,
+                    "latest_github_sha": revision,
+                    "last_synced_at": now(),
+                    "sync_status": "CURRENT",
+                    "sync_error": "",
+                }
+                if revision and not background_sync
+                else {"indexed_sha": revision} if revision else {}
+            ),
         )
         from app.models.schema import Answer, Citation
         from app.services.cache import redis_connection

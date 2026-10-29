@@ -24,7 +24,7 @@ Generate a webhook secret and enable these repository permissions:
 | Commit statuses | Read and write |
 | Metadata | Read-only |
 
-Subscribe to **Pull request** and **Issue comment** events. Generate and download a private key, then install the App on the repositories Regora should review.
+Subscribe to **Push**, **Pull request**, and **Issue comment** events. Generate and download a private key, then install the App on the repositories Regora should review. Push events keep the indexed default branch synchronized while the existing graph remains available to readers.
 
 Add the App values to `.env`. Store the private key on one line with literal `\n` separators:
 
