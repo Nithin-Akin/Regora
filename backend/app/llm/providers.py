@@ -22,7 +22,7 @@ class CompatibleLLMProvider(LLMProvider):
             "model": s.llm_model,
             "messages": messages,
             "temperature": 0.1,
-            "max_tokens": 450 if s.llm_provider == "ollama" else 1200,
+            "max_tokens": getattr(self, "max_tokens", 450 if s.llm_provider == "ollama" else 1200),
         }
         if s.llm_provider == "ollama":
             payload["reasoning_effort"] = "none"

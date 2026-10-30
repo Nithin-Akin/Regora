@@ -218,6 +218,37 @@ def test_architecture_policy_check_fails_for_error_violations(client):
 def test_unknown_symbol_returns_404(client):
     assert client.get("/api/repositories/r/symbols/missing").status_code == 404
     assert client.post("/api/repositories/r/trace", json={"source_id": "missing"}).status_code == 404
+    assert (
+        client.post(
+            "/api/repositories/r/refactoring-plan",
+            json={"symbol_id": "missing", "goal": "Change this implementation safely"},
+        ).status_code
+        == 404
+    )
+
+
+def test_refactoring_plan_endpoint_validates_and_returns_grounded_plan(client, demo_graph, monkeypatch):
+    target = next(node for node in demo_graph.nodes if node.name == "PaymentService")
+
+    class Planner:
+        def __init__(self, intelligence):
+            assert target.id in intelligence.nodes
+
+        def plan(self, symbol_id, goal):
+            return {"target": {"id": symbol_id}, "goal": goal, "grounding": "static-evidence", "stages": []}
+
+    monkeypatch.setattr(routes, "RefactoringPlanner", Planner)
+    response = client.post(
+        "/api/repositories/r/refactoring-plan",
+        json={"symbol_id": target.id, "goal": "Extract the payment provider contract"},
+    )
+    assert response.status_code == 200
+    assert response.json()["target"]["id"] == target.id
+    assert response.json()["goal"] == "Extract the payment provider contract"
+    assert client.post(
+        "/api/repositories/r/refactoring-plan",
+        json={"symbol_id": target.id, "goal": "short"},
+    ).status_code == 422
 
 
 def test_invalid_zip_rejected(client):

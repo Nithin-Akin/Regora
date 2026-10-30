@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from rq import Queue
 
 from app.agents.reasoning import RepoAgent
+from app.agents.refactoring import RefactoringPlanner
 from app.config import settings
 from app.graph.diff import compare_graphs
 from app.graph.store import GraphStore, get_store
@@ -19,6 +20,7 @@ from app.models.schema import (
     GitHubRequest,
     PullRequestRequest,
     PullRequestReviewPublishRequest,
+    RefactoringPlanRequest,
     TraceRequest,
 )
 from app.retrieval.hybrid import HybridRetrieval
@@ -596,6 +598,13 @@ def impact(id: str, symbol_id: str, i=Depends(ready)):
     if symbol_id not in i.nodes:
         raise HTTPException(404, "Symbol not found")
     return i.impact(symbol_id)
+
+
+@router.post("/repositories/{id}/refactoring-plan")
+def refactoring_plan(id: str, body: RefactoringPlanRequest, i=Depends(ready)):
+    if body.symbol_id not in i.nodes:
+        raise HTTPException(404, "Selected symbol not found")
+    return RefactoringPlanner(i).plan(body.symbol_id, body.goal)
 
 
 @router.post("/repositories/{id}/pull-request-impact")
