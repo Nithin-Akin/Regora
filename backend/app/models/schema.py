@@ -71,6 +71,11 @@ class TraceRequest(BaseModel):
     target_id: str | None = None
 
 
+class RefactoringPlanRequest(BaseModel):
+    symbol_id: str = Field(min_length=1, max_length=200)
+    goal: str = Field(min_length=10, max_length=2000)
+
+
 class Citation(BaseModel):
     symbol_id: str
     file: str
