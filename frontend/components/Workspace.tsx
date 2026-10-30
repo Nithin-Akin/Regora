@@ -21,6 +21,7 @@ import {
   LoaderCircle,
   MessageSquare,
   Network,
+  Workflow,
   RefreshCw,
   Search,
   Send,
@@ -42,6 +43,7 @@ import ThemeToggle from "./ThemeToggle";
 import AccountMenu from "./AccountMenu";
 import GitHubIntegration from "./GitHubIntegration";
 import VersionChanges from "./VersionChanges";
+import RefactoringPlanPanel from "./RefactoringPlanPanel";
 import { api, mergeGraph, streamAnswer } from "@/lib/api";
 import {
   buildPullRequestImpactMarkdown,
@@ -56,6 +58,7 @@ import type {
   Impact,
   PullRequestImpact,
   PullRequestReviewPublication,
+  RefactoringPlan,
   Citation,
   Answer,
   Message,
@@ -115,7 +118,7 @@ export default function Workspace({
     "architecture",
   );
   const [right, setRight] = useState<
-    "assistant" | "inspect" | "impact" | "pr"
+    "assistant" | "inspect" | "impact" | "pr" | "plan"
   >("assistant");
   const [layout, setLayout] = useState("cose");
   const [depth, setDepth] = useState(1);
@@ -1447,6 +1450,13 @@ export default function Workspace({
               <GitPullRequest size={14} />
               PR Review
             </button>
+            <button
+              className={right === "plan" ? "active" : ""}
+              onClick={() => setRight("plan")}
+            >
+              <Workflow size={14} />
+              Plan
+            </button>
             {impact && (
               <button
                 className={right === "impact" ? "active" : ""}
@@ -1671,6 +1681,14 @@ export default function Workspace({
                   Analyze Impact
                   <ArrowRight size={15} />
                 </button>
+                <button
+                  className="button subtle full inspector-plan-button"
+                  onClick={() => setRight("plan")}
+                >
+                  <Workflow size={16} />
+                  Plan a refactor
+                  <ArrowRight size={15} />
+                </button>
                 <div className="inspector-actions">
                   <button
                     onClick={() =>
@@ -1774,6 +1792,18 @@ export default function Workspace({
                 <p>Inspect its source, callers, and dependencies.</p>
               </div>
             )
+          ) : right === "plan" ? (
+            <RefactoringPlanPanel
+              base={base}
+              selected={selected}
+              onOpenSource={openSource}
+              onShowEvidence={(plan: RefactoringPlan) => {
+                setGraph(plan.graph);
+                setHighlights(plan.citations.map((node) => node.id));
+                setLayout("dagre");
+                setView("symbols");
+              }}
+            />
           ) : right === "pr" ? (
             <div className="pr-impact-panel">
               <div className="eyebrow">PR REVIEW AGENT</div>

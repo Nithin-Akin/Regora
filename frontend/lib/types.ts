@@ -214,6 +214,38 @@ export type Impact = {
   graph: GraphData;
   caveat: string;
 };
+export type RefactoringPlanStage = {
+  title: string;
+  objective: string;
+  actions: string[];
+  evidence_ids: string[];
+  verification: string[];
+};
+export type RefactoringPlan = {
+  target: Node;
+  goal: string;
+  summary: string;
+  confidence: number;
+  grounding: "llm-with-evidence" | "static-evidence";
+  warning?: string | null;
+  impact: {
+    score: number;
+    risk: "LOW" | "MEDIUM" | "HIGH";
+    blast_radius: number;
+    dependency_depth: number;
+    affected_files: string[];
+    affected_modules: string[];
+    affected_endpoints: string[];
+    database_interactions: string[];
+    paths: string[][];
+    caveat: string;
+  };
+  related_tests: string[];
+  missing_test_signal: boolean;
+  stages: RefactoringPlanStage[];
+  citations: Node[];
+  graph: GraphData;
+};
 export type PullRequestImpact = {
   pull_request: {
     number: number;
