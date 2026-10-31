@@ -121,43 +121,11 @@ def ingest(repository_id, kind, source, background_sync=False):
         for node in graph.nodes:
             if node.id in embeddings:
                 node.embedding = embeddings[node.id]
-        # Replace the graph only after parsing and embeddings both succeed.
-        # Readers keep the previous complete graph throughout a background sync.
-        store.save_graph(repository_id, graph)
-        store.update_repository(repository_id, fingerprint=graph.fingerprint, warnings=json.dumps(graph.warnings))
         stage("ANALYZING", 92, "Analyzing architecture, quality gates, dependency hubs, and cycles")
         graph_intelligence = Intelligence(graph)
         overview = graph_intelligence.overview()
         architecture_policy = load_architecture_policy(root, graph_intelligence)
-        if revision:
-            store.save_graph_snapshot(
-                repository_id,
-                revision,
-                graph,
-                now(),
-                "push" if background_sync else "index",
-            )
-        store.update_repository(
-            repository_id,
-            overview=json.dumps(overview),
-            architecture_policy=json.dumps(architecture_policy),
-            embedding_model=settings().embedding_model,
-            embedding_provider=settings().embedding_provider,
-            **(
-                {
-                    "indexed_sha": revision,
-                    "latest_github_sha": revision,
-                    "last_synced_at": now(),
-                    "sync_status": "CURRENT",
-                    "sync_error": "",
-                }
-                if revision and not background_sync
-                else {"indexed_sha": revision} if revision else {}
-            ),
-        )
         from app.models.schema import Answer, Citation
-        from app.services.cache import redis_connection
-        from rq import Queue
 
         evidence = [item["node"] for item in overview["hubs"][:4] if item["node"]["file_path"]]
         architecture = Answer(
@@ -173,9 +141,41 @@ def ingest(repository_id, kind, source, background_sync=False):
                 for n in evidence
             ],
         )
-        store.update_repository(
-            repository_id, architecture=architecture.model_dump_json(), architecture_status="QUEUED"
+        repository_fields = {
+            "fingerprint": graph.fingerprint,
+            "warnings": json.dumps(graph.warnings),
+            "overview": json.dumps(overview),
+            "architecture_policy": json.dumps(architecture_policy),
+            "architecture": architecture.model_dump_json(),
+            "architecture_status": "QUEUED",
+            "embedding_model": settings().embedding_model,
+            "embedding_provider": settings().embedding_provider,
+            **(
+                {
+                    "indexed_sha": revision,
+                    "latest_github_sha": revision,
+                    "last_synced_at": now(),
+                    "sync_status": "CURRENT",
+                    "sync_error": "",
+                }
+                if revision and not background_sync
+                else {"indexed_sha": revision} if revision else {}
+            ),
+        }
+        snapshot = (
+            {
+                "commit_sha": revision,
+                "created_at": now(),
+                "trigger": "push" if background_sync else "index",
+            }
+            if revision
+            else None
         )
+        # Graph, snapshot, and every field derived from the graph become visible together.
+        # Readers keep the previous complete version if preparation or publication fails.
+        store.publish_graph(repository_id, graph, repository_fields, snapshot)
+        from app.services.cache import redis_connection
+        from rq import Queue
         stage("READY", 100, f"Ready · {len(graph.nodes)} nodes · {len(graph.edges)} relationships")
         try:
             Queue("architecture", connection=redis_connection()).enqueue(

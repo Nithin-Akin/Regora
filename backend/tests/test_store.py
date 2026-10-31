@@ -98,3 +98,50 @@ def test_graph_snapshot_is_idempotent_and_history_is_bounded():
     assert calls[0][1]["data"]["format"] == "zlib-json-v1"
     assert "SKIP $keep" in calls[1][0]
     assert calls[1][1]["keep"] == 20
+
+
+def test_graph_publication_uses_one_transaction_for_graph_snapshot_and_metadata():
+    calls = []
+
+    class Result:
+        def consume(self):
+            return None
+
+    class Transaction:
+        def run(self, cypher, **parameters):
+            calls.append((cypher, parameters))
+            return Result()
+
+    class Session:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute_write(self, callback):
+            callback(Transaction())
+
+    class Driver:
+        def session(self):
+            return Session()
+
+    store = object.__new__(GraphStore)
+    store.driver = Driver()
+    graph = CodeGraph(
+        nodes=[CodeNode(id="node-1", name="one", type="Function", repository_id="repo-1")],
+        fingerprint="fingerprint-1",
+    )
+
+    store.publish_graph(
+        "repo-1",
+        graph,
+        {"fingerprint": "fingerprint-1", "overview": "{}"},
+        {"commit_sha": "a" * 40, "created_at": "2026-10-31T00:00:00Z", "trigger": "push"},
+    )
+
+    statements = [cypher for cypher, _ in calls]
+    assert any("DETACH DELETE n" in statement for statement in statements)
+    assert any("MERGE (s:GraphSnapshot" in statement for statement in statements)
+    assert any("SET r += $fields" in statement for statement in statements)
+    assert calls[-1][1]["fields"]["fingerprint"] == "fingerprint-1"
