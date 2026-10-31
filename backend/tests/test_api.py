@@ -173,6 +173,25 @@ def test_demo_reuses_existing_workspace(client):
     assert "owner_id" not in response.json()
 
 
+@pytest.mark.parametrize("method,path", [("delete", "/api/repositories/r"), ("post", "/api/repositories/r/reindex")])
+def test_repository_mutations_are_blocked_during_background_sync(client, method, path):
+    class SyncingStore(FakeStore):
+        def repository(self, id, owner_id=None):
+            repository = super().repository(id, owner_id)
+            if repository:
+                repository["sync_status"] = "PARSING"
+            return repository
+
+        def delete_repository(self, id):
+            raise AssertionError("active repositories must not be deleted")
+
+    app.dependency_overrides[get_store] = lambda: SyncingStore()
+    response = getattr(client, method)(path)
+
+    assert response.status_code == 409
+    assert "operation" in response.json()["detail"].lower()
+
+
 def test_source_only_serves_indexed_files(client):
     assert client.get("/api/repositories/r/source", params={"path": "../../etc/passwd"}).status_code == 404
     data = client.get("/api/repositories/r/source", params={"path": "utils/tokens.py"}).json()

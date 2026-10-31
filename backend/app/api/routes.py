@@ -42,6 +42,11 @@ router = APIRouter(prefix="/api")
 ACTIVE = {"QUEUED", "CLONING", "SCANNING", "PARSING", "BUILDING_GRAPH", "EMBEDDING", "ANALYZING"}
 
 
+def repository_operation_active(repo: dict) -> bool:
+    """Return whether indexing or background synchronization is in progress."""
+    return repo.get("status") in ACTIVE or repo.get("sync_status") in ACTIVE
+
+
 def repo_or_404(id, store, owner_id):
     repo = store.repository(id, owner_id)
     if not repo:
@@ -267,8 +272,8 @@ def delete(
     user: CurrentUser = Depends(current_user),
 ):
     repo = repo_or_404(id, store, user.id)
-    if repo["status"] in ACTIVE:
-        raise HTTPException(409, "Wait for indexing to finish before deleting this repository")
+    if repository_operation_active(repo):
+        raise HTTPException(409, "Wait for the active repository operation to finish before deleting")
     store.delete_repository(id)
     directory = settings().data_dir / id
     if directory.parent.resolve() == settings().data_dir.resolve():
@@ -283,8 +288,8 @@ def reindex(
     user: CurrentUser = Depends(current_user),
 ):
     repo = repo_or_404(id, store, user.id)
-    if repo["status"] in ACTIVE:
-        raise HTTPException(409, "Indexing is already in progress")
+    if repository_operation_active(repo):
+        raise HTTPException(409, "A repository operation is already in progress")
     kind = (
         "github"
         if repo["kind"] == "github"

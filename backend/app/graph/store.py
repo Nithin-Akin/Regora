@@ -221,21 +221,71 @@ class GraphStore:
     def save_graph(self, id, graph):
         # One transaction: readers see either the old graph or the complete new graph.
         def write(tx):
-            tx.run("MATCH (n:CodeNode {repository_id:$id}) DETACH DELETE n", id=id).consume()
-            rows = [n.model_dump() for n in graph.nodes]
-            for i in range(0, len(rows), 500):
-                tx.run("UNWIND $rows AS row CREATE (n:CodeNode) SET n = row", rows=rows[i : i + 500]).consume()
-            grouped = defaultdict(list)
-            for edge in graph.edges:
-                if edge.type not in RELATIONS:
-                    raise ValueError("Unsupported relationship type")
-                grouped[edge.type].append(edge.model_dump())
-            for kind, rows in grouped.items():
-                for i in range(0, len(rows), 500):
-                    tx.run(
-                        f"UNWIND $rows AS row MATCH (a:CodeNode {{id:row.source}}), (b:CodeNode {{id:row.target}}) CREATE (a)-[r:{kind}]->(b) SET r = row",
-                        rows=rows[i : i + 500],
-                    ).consume()
+            self._write_graph(tx, id, graph)
+
+        with self.driver.session() as session:
+            session.execute_write(write)
+
+    @staticmethod
+    def _write_graph(tx, repository_id: str, graph: CodeGraph):
+        tx.run("MATCH (n:CodeNode {repository_id:$id}) DETACH DELETE n", id=repository_id).consume()
+        rows = [node.model_dump() for node in graph.nodes]
+        for i in range(0, len(rows), 500):
+            tx.run("UNWIND $rows AS row CREATE (n:CodeNode) SET n = row", rows=rows[i : i + 500]).consume()
+        grouped = defaultdict(list)
+        for edge in graph.edges:
+            if edge.type not in RELATIONS:
+                raise ValueError("Unsupported relationship type")
+            grouped[edge.type].append(edge.model_dump())
+        for kind, relationships in grouped.items():
+            for i in range(0, len(relationships), 500):
+                tx.run(
+                    f"UNWIND $rows AS row MATCH (a:CodeNode {{id:row.source}}), (b:CodeNode {{id:row.target}}) CREATE (a)-[r:{kind}]->(b) SET r = row",
+                    rows=relationships[i : i + 500],
+                ).consume()
+
+    @staticmethod
+    def _snapshot_data(repository_id: str, commit_sha: str, graph: CodeGraph, created_at: str, trigger: str):
+        return {
+            "id": sha256(f"{repository_id}:{commit_sha}".encode()).hexdigest()[:32],
+            "repository_id": repository_id,
+            "commit_sha": commit_sha,
+            "fingerprint": graph.fingerprint,
+            "nodes": len(graph.nodes),
+            "relationships": len(graph.edges),
+            "created_at": created_at,
+            "trigger": trigger,
+            "format": SNAPSHOT_FORMAT,
+            "payload": encode_graph_snapshot(graph),
+        }
+
+    def publish_graph(self, repository_id: str, graph: CodeGraph, repository_fields: dict, snapshot: dict | None = None):
+        """Atomically replace a graph and publish all metadata derived from it."""
+        snapshot_data = (
+            self._snapshot_data(repository_id, graph=graph, **snapshot)
+            if snapshot
+            else None
+        )
+
+        def write(tx):
+            self._write_graph(tx, repository_id, graph)
+            if snapshot_data:
+                tx.run(
+                    "MERGE (s:GraphSnapshot {id:$id}) SET s += $data",
+                    id=snapshot_data["id"],
+                    data=snapshot_data,
+                ).consume()
+                tx.run(
+                    "MATCH (s:GraphSnapshot {repository_id:$repository_id}) "
+                    "WITH s ORDER BY s.created_at DESC SKIP $keep DETACH DELETE s",
+                    repository_id=repository_id,
+                    keep=20,
+                ).consume()
+            tx.run(
+                "MATCH (r:RepositoryMeta {id:$id}) SET r += $fields",
+                id=repository_id,
+                fields=repository_fields,
+            ).consume()
 
         with self.driver.session() as session:
             session.execute_write(write)
@@ -250,22 +300,10 @@ class GraphStore:
         return CodeGraph(nodes=[CodeNode(**n["node"]) for n in nodes], edges=[CodeEdge(**e["edge"]) for e in edges])
 
     def save_graph_snapshot(self, repository_id: str, commit_sha: str, graph: CodeGraph, created_at: str, trigger: str):
-        snapshot_id = sha256(f"{repository_id}:{commit_sha}".encode()).hexdigest()[:32]
-        data = {
-            "id": snapshot_id,
-            "repository_id": repository_id,
-            "commit_sha": commit_sha,
-            "fingerprint": graph.fingerprint,
-            "nodes": len(graph.nodes),
-            "relationships": len(graph.edges),
-            "created_at": created_at,
-            "trigger": trigger,
-            "format": SNAPSHOT_FORMAT,
-            "payload": encode_graph_snapshot(graph),
-        }
+        data = self._snapshot_data(repository_id, commit_sha, graph, created_at, trigger)
         rows = self.query(
             "MERGE (s:GraphSnapshot {id:$id}) SET s += $data RETURN properties(s) AS snapshot",
-            id=snapshot_id,
+            id=data["id"],
             data=data,
         )
         self.query(
