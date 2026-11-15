@@ -2,7 +2,7 @@ from app.graph.diff import MAX_EVIDENCE, compare_graphs
 from app.models.schema import CodeEdge, CodeGraph, CodeNode
 
 
-def node(id, name, *, hash="one", type="Function", file="src/app.py", module="app"):
+def node(id, name, *, hash="one", type="Function", file="src/app.py", module="app", docstring=""):
     return CodeNode(
         id=id,
         name=name,
@@ -12,6 +12,7 @@ def node(id, name, *, hash="one", type="Function", file="src/app.py", module="ap
         file_path=file,
         module=module,
         hash=hash,
+        docstring=docstring,
     )
 
 
@@ -51,3 +52,42 @@ def test_equal_graphs_have_zero_risk():
     result = compare_graphs(graph, graph)
     assert result["risk"] == {"score": 0, "level": "LOW"}
     assert result["symbols"] == []
+
+
+def test_graph_diff_identifies_documentation_changes():
+    base = CodeGraph(nodes=[node("function", "process", hash="same", docstring="Old docs")])
+    head = CodeGraph(nodes=[node("function", "process", hash="same", docstring="New docs")])
+
+    result = compare_graphs(base, head)
+
+    assert result["symbols"][0]["changed_fields"] == ["docstring"]
+
+
+def test_graph_diff_identifies_relationship_analysis_method_changes():
+    base = CodeGraph(
+        edges=[
+            CodeEdge(
+                id="call",
+                source="caller",
+                target="callee",
+                type="CALLS",
+                analysis_method="tree-sitter",
+            )
+        ]
+    )
+    head = CodeGraph(
+        edges=[
+            CodeEdge(
+                id="call",
+                source="caller",
+                target="callee",
+                type="CALLS",
+                analysis_method="heuristic",
+            )
+        ]
+    )
+
+    result = compare_graphs(base, head)
+
+    assert result["summary"]["relationships"]["modified"] == 1
+    assert result["relationships"][0]["changed_fields"] == ["analysis_method"]

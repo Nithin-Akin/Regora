@@ -11,12 +11,22 @@ NODE_FIELDS = (
     "start_line",
     "end_line",
     "signature",
+    "docstring",
     "module",
     "exported",
     "parameters",
     "returns",
 )
-EDGE_FIELDS = ("source", "target", "type", "source_file", "source_line", "confidence", "resolution")
+EDGE_FIELDS = (
+    "source",
+    "target",
+    "type",
+    "source_file",
+    "source_line",
+    "confidence",
+    "resolution",
+    "analysis_method",
+)
 MAX_EVIDENCE = 200
 
 
