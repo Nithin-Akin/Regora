@@ -806,6 +806,15 @@ summary {
   background: transparent;
   padding: 12px 0;
 }
+.dashboard-toolbar select {
+  max-width: 170px;
+  padding: 8px 25px 8px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 11px;
+}
 .dashboard-toolbar span {
   font-size: 10px;
   white-space: nowrap;
