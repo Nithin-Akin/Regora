@@ -25,6 +25,7 @@ export default function Repositories() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const loadRepositories = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -51,9 +52,15 @@ export default function Repositories() {
   const ready = repos.filter((repo) => repo.status === "READY").length;
   const failed = repos.filter((repo) => repo.status === "FAILED").length;
   const active = repos.length - ready - failed;
-  const filtered = repos.filter((repo) =>
-    repo.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const filtered = repos.filter((repo) => {
+    const matchesName = repo.name.toLowerCase().includes(query.trim().toLowerCase());
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      (statusFilter === "PROCESSING"
+        ? repo.status !== "READY" && repo.status !== "FAILED"
+        : repo.status === statusFilter);
+    return matchesName && matchesStatus;
+  });
   return (
     <>
       <header className="topbar">
@@ -137,6 +144,16 @@ export default function Repositories() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
+              <select
+                aria-label="Filter repositories by status"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="ALL">All statuses</option>
+                <option value="READY">Ready</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="FAILED">Needs attention</option>
+              </select>
               <span>{filtered.length} repositories</span>
             </div>
             <div className="repo-list">
