@@ -62,6 +62,24 @@ class GraphStore:
         )
         return rows[0]["repo"] if rows else None
 
+    def claim_sync_retry(self, id: str, owner_id: str, updated_at: str):
+        """Atomically move one failed GitHub sync back to the queue state."""
+        rows = self.query(
+            "MATCH (r:RepositoryMeta {id:$id}) "
+            "WHERE (r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL)) "
+            "AND r.kind='github' AND r.status='READY' AND r.sync_status='ERROR' "
+            "AND r.latest_github_sha IS NOT NULL AND r.latest_github_sha <> '' "
+            "AND r.github_installation_id IS NOT NULL "
+            "SET r.sync_status='QUEUED', r.sync_progress=0, "
+            "r.sync_message='Waiting to retry synchronization', r.sync_error='', "
+            "r.sync_updated_at=$updated_at "
+            "RETURN properties(r) AS repo",
+            id=id,
+            owner_id=owner_id,
+            updated_at=updated_at,
+        )
+        return rows[0]["repo"] if rows else None
+
     def repository(self, id, owner_id=None):
         ownership = (
             " AND (r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL))"
