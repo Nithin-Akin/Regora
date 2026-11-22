@@ -93,7 +93,7 @@ class GraphStore:
         )
         return rows[0]["repo"] if rows else None
 
-    def repositories(self, owner_id=None):
+    def repositories(self, owner_id=None, *, limit=100, offset=0):
         ownership = (
             "WHERE r.owner_id=$owner_id OR ($owner_id='local' AND r.owner_id IS NULL)"
             if owner_id is not None
@@ -103,8 +103,10 @@ class GraphStore:
             r["repo"]
             for r in self.query(
                 f"MATCH (r:RepositoryMeta) {ownership} RETURN properties(r) AS repo "
-                "ORDER BY r.created_at DESC LIMIT 100",
+                "ORDER BY r.created_at DESC SKIP $offset LIMIT $limit",
                 owner_id=owner_id,
+                offset=offset,
+                limit=limit,
             )
         ]
 

@@ -239,10 +239,16 @@ async def upload(
 
 @router.get("/repositories")
 def repositories(
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     store: GraphStore = Depends(get_store),
     user: CurrentUser = Depends(current_user),
 ):
-    return [public_repo(r) for r in store.repositories(user.id)]
+    if limit == 100 and offset == 0:
+        rows = store.repositories(user.id)
+    else:
+        rows = store.repositories(user.id, limit=limit, offset=offset)
+    return [public_repo(repo) for repo in rows]
 
 
 @router.get("/repositories/{id}")
