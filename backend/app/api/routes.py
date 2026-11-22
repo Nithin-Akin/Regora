@@ -36,6 +36,7 @@ from app.services.pull_requests import (
     publish_pull_request_comment,
     validate_pull_request_repository,
 )
+from app.services.repository_sync import sync_github_repository, sync_job_failure
 from app.workers.ingestion import ingest, job_failure, now
 
 router = APIRouter(prefix="/api")
@@ -238,10 +239,16 @@ async def upload(
 
 @router.get("/repositories")
 def repositories(
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     store: GraphStore = Depends(get_store),
     user: CurrentUser = Depends(current_user),
 ):
-    return [public_repo(r) for r in store.repositories(user.id)]
+    if limit == 100 and offset == 0:
+        rows = store.repositories(user.id)
+    else:
+        rows = store.repositories(user.id, limit=limit, offset=offset)
+    return [public_repo(repo) for repo in rows]
 
 
 @router.get("/repositories/{id}")
@@ -376,6 +383,58 @@ def github_integration(
             "updated_at": repo.get("sync_updated_at", ""),
         },
         "runs": [public_guardian_run(run) for run in store.guardian_runs(id, 50)],
+    }
+
+
+@router.post("/repositories/{id}/github-integration/sync/retry", status_code=202)
+def retry_repository_sync(
+    id: str,
+    store: GraphStore = Depends(get_store),
+    user: CurrentUser = Depends(current_user),
+):
+    repo = repo_or_404(id, store, user.id)
+    if repo.get("kind") != "github":
+        raise HTTPException(409, "Only GitHub repositories can retry synchronization")
+    if repository_operation_active(repo):
+        raise HTTPException(409, "Repository work is already in progress")
+    if repo.get("sync_status") != "ERROR":
+        raise HTTPException(409, "Only failed repository synchronizations can be retried")
+    installation_id = repo.get("github_installation_id")
+    latest_sha = repo.get("latest_github_sha", "")
+    if not isinstance(installation_id, int) or not isinstance(latest_sha, str) or not re.fullmatch(
+        r"[0-9a-f]{40,64}", latest_sha
+    ):
+        raise HTTPException(409, "This repository does not have enough GitHub data to retry synchronization")
+
+    claimed = store.claim_sync_retry(id, user.id, now())
+    if not claimed:
+        raise HTTPException(409, "Synchronization state changed; refresh and try again")
+    try:
+        job = Queue("sync", connection=redis_connection()).enqueue(
+            sync_github_repository,
+            id,
+            installation_id,
+            latest_sha,
+            job_timeout=1800,
+            result_ttl=86400,
+            failure_ttl=604800,
+            on_failure=sync_job_failure,
+        )
+    except Exception:
+        store.update_repository(
+            id,
+            sync_status="ERROR",
+            sync_message="Could not queue synchronization retry",
+            sync_error="Could not queue synchronization retry",
+            sync_updated_at=now(),
+        )
+        raise
+    return {
+        "status": "queued",
+        "kind": "repository_sync",
+        "repository_id": id,
+        "head_sha": latest_sha,
+        "job_id": job.id,
     }
 
 
